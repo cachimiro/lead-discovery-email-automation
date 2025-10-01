@@ -6,12 +6,17 @@ import ResultsTable from "@/components/results-table";
 type Candidate = {
   email: string;
   email_status?: string;
-  domain: string;
+  domain: string; // the company domain this email belongs to
 };
 
 function normDomain(s?: string | null) {
   if (!s) return "";
-  return s.trim().toLowerCase().replace(/^https?:\/\//, "").replace(/^www\./, "").split("/")[0];
+  return s
+    .trim()
+    .toLowerCase()
+    .replace(/^https?:\/\//, "")
+    .replace(/^www\./, "")
+    .split("/")[0];
 }
 
 export default function CompanyPage() {
@@ -38,6 +43,8 @@ export default function CompanyPage() {
     setMsg(null);
     setLoading(true);
 
+    let redirected = false;
+
     try {
       const form = new FormData(e.currentTarget);
       const email_type = ((form.get("email_type") as string | undefined) || "any")
@@ -45,12 +52,9 @@ export default function CompanyPage() {
         .trim() as "any" | "personal" | "generic";
 
       // 1) Clean & de-dupe domains
-      const cleaned = Array.from(
-        new Set(domains.map(normDomain).filter(Boolean))
-      );
+      const cleaned = Array.from(new Set(domains.map(normDomain).filter(Boolean)));
       if (cleaned.length === 0) {
         setMsg("Please enter at least one company domain.");
-        setLoading(false);
         return;
       }
 
@@ -58,6 +62,7 @@ export default function CompanyPage() {
       const allCandidates: Candidate[] = [];
       for (let i = 0; i < cleaned.length; i++) {
         const domain = cleaned[i];
+
         const amf = await fetch("/api/discover", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -80,7 +85,6 @@ export default function CompanyPage() {
 
       if (allCandidates.length === 0) {
         setMsg("No emails returned by AnyMailFinder for the provided domains.");
-        setLoading(false);
         return;
       }
 
@@ -93,7 +97,7 @@ export default function CompanyPage() {
 
       const byEmail: Record<string, string> = verify?.results ?? {};
 
-      // 4) Show results – put the domain in the “Company” column
+      // 4) Show results – display domain in the “Company” column
       const withNB = allCandidates.map((c) => ({
         email: c.email,
         email_status: c.email_status,
@@ -102,39 +106,33 @@ export default function CompanyPage() {
       }));
       setRows(withNB);
 
-      // 5) Save only 'valid' to Supabase, grouped by domain
+      // 5) Pay-before-insert: start ONE Stripe Checkout for all NB-valid leads
       const valid = withNB.filter((x) => x.verified_status === "valid");
       if (valid.length) {
-        // group by domain
-        const byDomain = new Map<string, any[]>();
-        for (const v of valid) {
-          const d = v.companyName; // we stored domain here
-          if (!byDomain.has(d)) byDomain.set(d, []);
-          byDomain.get(d)!.push(v);
-        }
+        const res = await fetch("/api/checkout", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            leads: valid.map((v) => ({
+              ...v,
+              verified_status: "valid",
+              amf_email_status: v.email_status,
+              source: "company",
+              email_type,
+              // pass the actual domain for each lead
+              company_domain:
+                v.companyName || (v.email?.includes("@") ? v.email.split("@")[1] : null),
+            })),
+          }),
+        }).then((r) => r.json());
 
-        // import per domain
-        for (const [domain, leads] of byDomain.entries()) {
-          await fetch("/api/leads/import", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              domain,
-              leads: leads.map((v) => ({
-                ...v,
-                source: "company",
-                email_type,
-                amf_email_status: v.email_status,
-              })),
-            }),
-          });
-          // brief delay between imports
-          await new Promise((r) => setTimeout(r, 120));
+        if (res.checkoutUrl) {
+          setMsg("Redirecting to checkout…");
+          redirected = true;
+          window.location.href = res.checkoutUrl;
+        } else {
+          setMsg("Could not start checkout.");
         }
-
-        setMsg(
-          `Saved ${valid.length} valid email${valid.length > 1 ? "s" : ""} across ${byDomain.size} domain${byDomain.size > 1 ? "s" : ""}.`
-        );
       } else {
         setMsg("No valid emails found.");
       }
@@ -142,7 +140,7 @@ export default function CompanyPage() {
       console.error(err);
       setMsg("Something went wrong. Please try again.");
     } finally {
-      setLoading(false);
+      if (!redirected) setLoading(false);
     }
   }
 

@@ -20,11 +20,13 @@ export default function LinkedInPage() {
     setMsg(null);
     setLoading(true);
 
+    let redirected = false;
+
     try {
       const form = new FormData(e.currentTarget);
       const linkedin_url = (form.get("linkedin_url") as string)?.trim();
 
-      // 1) AMF
+      // 1) AnyMailFinder
       const amf = await fetch("/api/discover", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -45,7 +47,6 @@ export default function LinkedInPage() {
 
       if (candidates.length === 0) {
         setMsg("No emails returned by AnyMailFinder.");
-        setLoading(false);
         return;
       }
 
@@ -60,24 +61,32 @@ export default function LinkedInPage() {
       const withNB = candidates.map((c) => ({ ...c, verified_status: byEmail[c.email] }));
       setRows(withNB);
 
-      // 4) Save only 'valid'
+      // 4) Pay-before-insert: start Stripe Checkout with only NB-valid leads
       const valid = withNB.filter((x) => x.verified_status === "valid");
+
       if (valid.length) {
-        const inferredDomain = inferDomainFromEmail(valid[0]?.email);
-        await fetch("/api/leads/import", {
+        const res = await fetch("/api/checkout", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            domain: inferredDomain || "", // fallback from email
             leads: valid.map((v) => ({
               ...v,
+              verified_status: "valid",
+              amf_email_status: v.email_status,
               source: "linkedin",
               linkedin_url,
-              amf_email_status: v.email_status,
+              company_domain: inferDomainFromEmail(v.email) || null,
             })),
           }),
-        });
-        setMsg(`${valid.length} valid lead${valid.length > 1 ? "s" : ""} saved.`);
+        }).then((r) => r.json());
+
+        if (res.checkoutUrl) {
+          setMsg("Redirecting to checkout…");
+          redirected = true;
+          window.location.href = res.checkoutUrl;
+        } else {
+          setMsg("Could not start checkout.");
+        }
       } else {
         setMsg("No valid emails found.");
       }
@@ -85,7 +94,7 @@ export default function LinkedInPage() {
       console.error(err);
       setMsg("Something went wrong. Please try again.");
     } finally {
-      setLoading(false);
+      if (!redirected) setLoading(false);
     }
   }
 

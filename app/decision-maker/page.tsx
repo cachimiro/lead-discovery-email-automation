@@ -20,6 +20,8 @@ export default function DecisionMakerPage() {
     setMsg(null);
     setLoading(true);
 
+    let redirected = false;
+
     try {
       const form = new FormData(e.currentTarget);
       const domain = (form.get("domain") as string | undefined)?.trim();
@@ -28,7 +30,7 @@ export default function DecisionMakerPage() {
         .map((s) => s.trim().toLowerCase())
         .filter(Boolean);
 
-      // 1) AMF
+      // 1) AnyMailFinder
       const amf = await fetch("/api/discover", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -39,7 +41,7 @@ export default function DecisionMakerPage() {
         }),
       }).then((r) => r.json());
 
-      // 2) Shape candidates
+      // 2) Candidates
       const candidates: any[] = [];
       if (amf?.email) {
         candidates.push({
@@ -53,7 +55,6 @@ export default function DecisionMakerPage() {
 
       if (candidates.length === 0) {
         setMsg("No emails returned by AnyMailFinder.");
-        setLoading(false);
         return;
       }
 
@@ -68,24 +69,33 @@ export default function DecisionMakerPage() {
       const withNB = candidates.map((c) => ({ ...c, verified_status: byEmail[c.email] }));
       setRows(withNB);
 
-      // 4) Save only 'valid'
+      // 4) Pay-before-insert: start Stripe Checkout with only NB-valid leads
       const valid = withNB.filter((x) => x.verified_status === "valid");
+
       if (valid.length) {
         const fallbackDomain = inferDomainFromEmail(valid[0]?.email);
-        await fetch("/api/leads/import", {
+        const res = await fetch("/api/checkout", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            domain: domain || fallbackDomain || "",
             leads: valid.map((v) => ({
               ...v,
+              verified_status: "valid",
+              amf_email_status: v.email_status,
               source: "decision_maker",
               decision_categories: cats,
-              amf_email_status: v.email_status,
+              company_domain: domain || fallbackDomain || null,
             })),
           }),
-        });
-        setMsg(`${valid.length} valid lead${valid.length > 1 ? "s" : ""} saved.`);
+        }).then((r) => r.json());
+
+        if (res.checkoutUrl) {
+          setMsg("Redirecting to checkout…");
+          redirected = true;
+          window.location.href = res.checkoutUrl;
+        } else {
+          setMsg("Could not start checkout.");
+        }
       } else {
         setMsg("No valid emails found.");
       }
@@ -93,7 +103,7 @@ export default function DecisionMakerPage() {
       console.error(err);
       setMsg("Something went wrong. Please try again.");
     } finally {
-      setLoading(false);
+      if (!redirected) setLoading(false);
     }
   }
 
