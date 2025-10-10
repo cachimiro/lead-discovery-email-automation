@@ -19,7 +19,7 @@ export async function POST(req: NextRequest) {
   const sig = req.headers.get("stripe-signature");
   if (!sig) return new Response("Missing signature", { status: 400 });
 
-  const body = Buffer.from(await req.arrayBuffer());
+  const body = Buffer.from(await req.arrayBuffer());  
 
   let event: Stripe.Event;
   try {
