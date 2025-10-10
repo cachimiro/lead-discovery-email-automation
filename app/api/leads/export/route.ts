@@ -3,6 +3,7 @@ import { NextRequest } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase";
 
 export const runtime = "nodejs";
+export const dynamic = "force-dynamic"; // this route depends on request.url
 
 function csvEscape(val: any): string {
   if (val === null || val === undefined) return "";

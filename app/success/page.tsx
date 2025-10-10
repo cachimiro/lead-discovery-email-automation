@@ -1,10 +1,12 @@
 // app/success/page.tsx
 "use client";
 
+import { Suspense, useMemo } from "react";
 import { useSearchParams } from "next/navigation";
-import { useMemo } from "react";
 
-export default function SuccessPage() {
+export const dynamic = "force-dynamic"; // don’t prerender this page
+
+function SuccessInner() {
   const sp = useSearchParams();
   const batch = sp.get("batch");
 
@@ -14,7 +16,7 @@ export default function SuccessPage() {
   }, [batch]);
 
   return (
-    <main className="max-w-xl mx-auto p-8 space-y-4">
+    <div className="space-y-4">
       <h1 className="text-2xl font-semibold">Payment successful 🎉</h1>
       <p className="text-slate-600">
         Your verified leads have been saved. You can download a CSV copy below.
@@ -36,6 +38,16 @@ export default function SuccessPage() {
           Back to Home
         </a>
       </div>
+    </div>
+  );
+}
+
+export default function SuccessPage() {
+  return (
+    <main className="max-w-xl mx-auto p-8">
+      <Suspense fallback={<p className="text-slate-600">Loading…</p>}>
+        <SuccessInner />
+      </Suspense>
     </main>
   );
 }
