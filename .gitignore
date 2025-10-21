@@ -1,6 +1,5 @@
-# Dependencies
-/node_modules.next/
 node_modules/
+.next/
 core.*
 *.log
 .env
