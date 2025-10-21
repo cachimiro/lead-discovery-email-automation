@@ -4,6 +4,8 @@ export const runtime = "nodejs";
 
 import Stripe from "stripe";
 import { supabaseAdmin } from "@/lib/supabase";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth-config";
 
 const TEST_MODE = process.env.TEST_MODE === "true";
 
@@ -39,6 +41,12 @@ function inferDomainFromEmail(email?: string | null) {
 }
 
 export async function POST(req: NextRequest) {
+  const authSession = await getServerSession(authOptions);
+
+  if (!authSession || !authSession.user) {
+    return Response.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   const { leads } = (await req.json()) as { leads: LeadIn[] };
 
   if (!Array.isArray(leads) || leads.length === 0) {
@@ -50,7 +58,7 @@ export async function POST(req: NextRequest) {
 
   // 1) Stage as pending
   const { data: pending, error } = await sb
-    .from("LDApending")
+    .from("cold_outreach_pending_leads")
     .insert({ leads })
     .select()
     .single();
@@ -67,11 +75,11 @@ export async function POST(req: NextRequest) {
 
     // set a fake stripe_session_id on the pending batch
     await sb
-      .from("LDApending")
+      .from("cold_outreach_pending_leads")
       .update({ stripe_session_id: fakeSessionId })
       .eq("id", pending.id);
 
-    // directly upsert into LDAleads (simulate webhook fulfillment)
+    // directly upsert into cold_outreach_discovered_leads (simulate webhook fulfillment)
     const rows = (leads as LeadIn[])
       .map((l) => {
         const email = (l.email || "").toLowerCase();
@@ -79,6 +87,7 @@ export async function POST(req: NextRequest) {
         if (!email || !domain) return null;
 
         return {
+          user_id: authSession.user.id,
           source: l.source ?? "company",
           decision_categories: l.decision_categories ?? null,
           linkedin_url: l.linkedin_url ?? null,
@@ -108,7 +117,7 @@ export async function POST(req: NextRequest) {
       .filter(Boolean) as any[];
 
     if (rows.length) {
-      await sb.from("LDAleads").upsert(rows, { onConflict: "email,company_domain" });
+      await sb.from("cold_outreach_discovered_leads").upsert(rows, { onConflict: "email,company_domain" });
     }
 
     // Pretend “checkout URL” is your success page; the client will redirect there
@@ -139,7 +148,7 @@ export async function POST(req: NextRequest) {
   });
 
   // 3) Store session id back on pending
-  await sb.from("LDApending").update({ stripe_session_id: session.id }).eq("id", pending.id);
+  await sb.from("cold_outreach_pending_leads").update({ stripe_session_id: session.id }).eq("id", pending.id);
 
   return Response.json({ checkoutUrl: session.url, batchId: pending.id });
 }

@@ -4,36 +4,45 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 const menuItems = [
-  { href: "/", label: "Home" },
-  { href: "/person", label: "Find a Person's Email" },
-  { href: "/decision-maker", label: "Find a Decision Maker's Email" },
-  { href: "/company", label: "Find All Emails at a Company" },
-  { href: "/linkedin", label: "Find Emails by LinkedIn URL" },
-  // { href: "/leads", label: "Saved Leads" }, // ← hidden for now
+  { href: "/dashboard", label: "Dashboard" },
+  { href: "/discover", label: "Lead Discovery" },
+  { href: "/discovered-leads", label: "Discovered Leads" },
+  { href: "/sway-pr", label: "Sway PR" },
+  { href: "/journalist-leads", label: "Journalist Leads" },
+  { href: "/email-matcher", label: "Match & Send" },
+  { href: "/email-campaigns", label: "Campaigns" },
+  { href: "/email-templates", label: "Templates" },
+  { href: "/contacts", label: "Contacts" },
 ];
-
 
 export default function Sidebar() {
   const pathname = usePathname();
 
   return (
-    <aside className="w-64 bg-red-700 text-white flex flex-col">
+    <aside className="w-64 bg-white border-r border-gray-200 flex flex-col">
       {/* Logo / Title */}
-      <div className="p-6 text-2xl font-bold border-b border-red-500">
-        SwayPR
+      <div className="p-6 border-b border-gray-200">
+        <h1 className="text-xl font-bold text-gray-900">SwayPR</h1>
+        <p className="text-xs text-gray-500 mt-1">Lead Discovery Platform</p>
       </div>
 
       {/* Menu */}
-      <nav className="flex-1 mt-4">
-        <ul>
+      <nav className="flex-1 px-3 py-4">
+        <ul className="space-y-1">
           {menuItems.map((item) => {
             const active = pathname === item.href;
+            
             return (
               <li key={item.href}>
                 <Link
                   href={item.href}
-                  className={`block px-6 py-3 text-sm font-medium transition-colors
-                    ${active ? "bg-white text-red-700" : "hover:bg-red-600"}
+                  className={`
+                    flex items-center px-3 py-2 rounded-lg text-sm font-medium
+                    transition-colors duration-200
+                    ${active 
+                      ? 'bg-blue-50 text-blue-700'
+                      : 'text-gray-700 hover:bg-gray-50'
+                    }
                   `}
                 >
                   {item.label}
@@ -43,6 +52,19 @@ export default function Sidebar() {
           })}
         </ul>
       </nav>
+
+      {/* Bottom Card */}
+      <div className="p-4 border-t border-gray-200">
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-white text-sm font-semibold">
+            J
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-medium text-gray-900 truncate">Johann</p>
+            <p className="text-xs text-gray-500">Premium</p>
+          </div>
+        </div>
+      </div>
     </aside>
   );
 }

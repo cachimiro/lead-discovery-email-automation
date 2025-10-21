@@ -26,13 +26,13 @@ function toCSV(rows: any[], headers: string[]): string {
 /**
  * Modes:
  *  1) Batch export (preferred, paid-only):
- *     GET /api/leads/export?batch=<LDApending.id>
- *     - Looks up LDApending by id -> gets stripe_session_id
- *     - Exports rows from LDAleads with that stripe_session_id
+ *     GET /api/leads/export?batch=<cold_outreach_pending_leads.id>
+ *     - Looks up cold_outreach_pending_leads by id -> gets stripe_session_id
+ *     - Exports rows from cold_outreach_discovered_leads with that stripe_session_id
  *
  *  2) Filter export (fallback):
  *     GET /api/leads/export?domain=<domain>&query=<search>
- *     - Exports rows from LDAleads matching filters
+ *     - Exports rows from cold_outreach_discovered_leads matching filters
  */
 export async function GET(req: NextRequest) {
   try {
@@ -43,7 +43,7 @@ export async function GET(req: NextRequest) {
 
     const sb = supabaseAdmin();
 
-    // Common column set matching your LDAleads schema
+    // Common column set matching your cold_outreach_discovered_leads schema
     const selectCols = [
       "email",
       "full_name",
@@ -69,7 +69,7 @@ export async function GET(req: NextRequest) {
     if (batch) {
       // --- Mode 1: export by paid batch ---
       const { data: pending, error: pendErr } = await sb
-        .from("LDApending")
+        .from("cold_outreach_pending_leads")
         .select("stripe_session_id")
         .eq("id", batch)
         .single();
@@ -82,7 +82,7 @@ export async function GET(req: NextRequest) {
       }
 
       const { data, error } = await sb
-        .from("LDAleads")
+        .from("cold_outreach_discovered_leads")
         .select(selectCols)
         .eq("stripe_session_id", pending.stripe_session_id)
         .order("created_at", { ascending: true });
@@ -99,7 +99,7 @@ export async function GET(req: NextRequest) {
     } else {
       // --- Mode 2: filter export (domain/query) ---
       let q = sb
-        .from("LDAleads")
+        .from("cold_outreach_discovered_leads")
         .select(selectCols)
         .order("created_at", { ascending: false });
 

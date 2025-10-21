@@ -16,26 +16,32 @@ function SuccessInner() {
   }, [batch]);
 
   return (
-    <div className="space-y-4">
-      <h1 className="text-2xl font-semibold">Payment successful 🎉</h1>
-      <p className="text-slate-600">
-        Your verified leads have been saved. You can download a CSV copy below.
+    <div className="space-y-6">
+      <h1 className="text-3xl font-bold text-gray-900">Payment successful 🎉</h1>
+      <p className="text-gray-600 text-lg">
+        Your verified leads have been saved and are ready to view.
       </p>
 
-      {batch ? (
+      <div className="flex gap-4">
         <a
-          href={exportHref}
-          className="inline-flex items-center rounded-md bg-red-600 text-white px-4 py-2 font-medium hover:bg-red-700"
+          href="/discovered-leads"
+          className="inline-flex items-center rounded-xl bg-blue-600 text-white px-6 py-3 font-medium hover:bg-blue-700 transition-colors"
         >
-          Download CSV
+          View Your Leads
         </a>
-      ) : (
-        <p className="text-slate-500">No batch id found in the URL.</p>
-      )}
+        {batch && (
+          <a
+            href={exportHref}
+            className="inline-flex items-center rounded-xl bg-gray-600 text-white px-6 py-3 font-medium hover:bg-gray-700 transition-colors"
+          >
+            Download CSV
+          </a>
+        )}
+      </div>
 
       <div className="pt-4">
-        <a href="/" className="text-red-700 hover:underline">
-          Back to Home
+        <a href="/discover" className="text-blue-600 hover:underline font-medium">
+          Discover More Leads
         </a>
       </div>
     </div>

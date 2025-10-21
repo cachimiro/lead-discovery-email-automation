@@ -37,7 +37,7 @@ export async function POST(req: NextRequest) {
 
     // Load pending batch
     const { data: pending, error } = await sb
-      .from("LDApending")
+      .from("cold_outreach_pending_leads")
       .select("*")
       .eq("id", batchId)
       .single();
@@ -47,7 +47,7 @@ export async function POST(req: NextRequest) {
     const nowIso = new Date().toISOString();
     const today = nowIso.slice(0, 10);
 
-    // Move each lead into LDAleads
+    // Move each lead into cold_outreach_discovered_leads
     const leads: any[] = pending.leads || [];
     const rows = leads.map((l) => {
       const domain = l.company_domain || inferDomainFromEmail(l.email) || null;
@@ -81,7 +81,7 @@ export async function POST(req: NextRequest) {
     }).filter(r => !!r.email && !!r.company_domain); // keep rows with domain + email
 
     if (rows.length) {
-      await sb.from("LDAleads").upsert(rows, { onConflict: "email,company_domain" });
+      await sb.from("cold_outreach_discovered_leads").upsert(rows, { onConflict: "email,company_domain" });
     }
   }
 

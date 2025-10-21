@@ -110,7 +110,7 @@ export async function POST(req: NextRequest) {
 
     const sb = supabaseAdmin();
     const { error } = await sb
-      .from("LDAleads")
+      .from("cold_outreach_discovered_leads")
       .upsert(prepared, { onConflict: "email,company_domain" });
 
     if (error) {
