@@ -22,11 +22,12 @@ You're getting OAuth errors because the redirect URIs in Google and Microsoft do
 2. Search for "App registrations" and select your app
 3. Click **Authentication** in the left menu
 4. Under "Web" → "Redirect URIs", click **Add URI**
-5. Paste this EXACT URL:
+5. Paste this EXACT URL (note: it's `azure-ad` not `microsoft`):
    ```
-   https://sway-pr-leads-g4bfk.ondigitalocean.app/api/auth/callback/microsoft
+   https://sway-pr-leads-g4bfk.ondigitalocean.app/api/auth/callback/azure-ad
    ```
-6. Click **Save**
+6. Make sure **"ID tokens"** is checked under "Implicit grant and hybrid flows"
+7. Click **Save**
 
 ### Step 3: Verify Environment Variables in DigitalOcean (1 minute)
 

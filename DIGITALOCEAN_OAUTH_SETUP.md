@@ -9,8 +9,10 @@ You need to add these redirect URIs to both Google and Microsoft OAuth apps:
 ### NextAuth Callback
 ```
 https://sway-pr-leads-g4bfk.ondigitalocean.app/api/auth/callback/google
-https://sway-pr-leads-g4bfk.ondigitalocean.app/api/auth/callback/microsoft
+https://sway-pr-leads-g4bfk.ondigitalocean.app/api/auth/callback/azure-ad
 ```
+
+⚠️ **Important:** Microsoft uses `/azure-ad` not `/microsoft` in the callback URL.
 
 ---
 
@@ -36,9 +38,11 @@ https://sway-pr-leads-g4bfk.ondigitalocean.app/api/auth/callback/microsoft
 4. Click **Authentication** in the left sidebar
 5. Under **Platform configurations** → **Web**, add redirect URI:
    ```
-   https://sway-pr-leads-g4bfk.ondigitalocean.app/api/auth/callback/microsoft
+   https://sway-pr-leads-g4bfk.ondigitalocean.app/api/auth/callback/azure-ad
    ```
-6. Click **Save**
+   ⚠️ **Note:** It's `/azure-ad` not `/microsoft`
+6. Under **Implicit grant and hybrid flows**, check **"ID tokens"**
+7. Click **Save**
 
 ---
 
@@ -106,5 +110,6 @@ https://sway-pr-leads-g4bfk.ondigitalocean.app/api/auth/callback/google
 
 **Microsoft Redirect URI:**
 ```
-https://sway-pr-leads-g4bfk.ondigitalocean.app/api/auth/callback/microsoft
+https://sway-pr-leads-g4bfk.ondigitalocean.app/api/auth/callback/azure-ad
 ```
+⚠️ **Important:** Use `/azure-ad` not `/microsoft`
