@@ -44,8 +44,18 @@ export default function LoginPage() {
         <div className="bg-white rounded-2xl border border-gray-100 p-8 shadow-sm">
           <div className="space-y-4">
             {error && (
-              <div className="rounded-xl bg-red-50 border border-red-200 p-4 text-sm text-red-600">
-                {error}
+              <div className="rounded-xl bg-red-50 border border-red-200 p-4">
+                <div className="text-sm text-red-600 mb-2">
+                  {error}
+                </div>
+                {(error.includes('redirect') || error.includes('OAuth') || error.includes('400')) && (
+                  <a 
+                    href="/oauth-setup"
+                    className="inline-block text-sm text-red-700 hover:text-red-800 font-semibold underline"
+                  >
+                    → Fix OAuth Configuration
+                  </a>
+                )}
               </div>
             )}
 
@@ -102,7 +112,26 @@ export default function LoginPage() {
             </button>
           </div>
 
-          <div className="mt-8 text-center">
+          <div className="mt-6 pt-6 border-t border-gray-200">
+            <a 
+              href="/dev-login"
+              className="block w-full text-center px-6 py-3 rounded-xl bg-gray-100 text-gray-700 font-medium hover:bg-gray-200 transition-colors"
+            >
+              🔧 Development Login (Skip OAuth)
+            </a>
+          </div>
+
+          <div className="mt-8 text-center space-y-3">
+            {error && error.includes('redirect_uri') && (
+              <div className="text-sm">
+                <a 
+                  href="/oauth-setup"
+                  className="text-red-600 hover:text-red-700 font-medium underline"
+                >
+                  ⚠️ Fix OAuth Configuration
+                </a>
+              </div>
+            )}
             <p className="text-xs text-gray-500">
               By signing in, you agree to our{' '}
               <a href="#" className="text-blue-600 hover:text-blue-700 font-medium">Terms of Service</a>

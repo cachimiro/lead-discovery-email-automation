@@ -1,0 +1,13 @@
+services:
+    nextjs:
+        name: Next.js Dev Server
+        description: Next.js development server for lead discovery app
+        commands:
+            start: |
+                cd /workspaces/lead-discovery-email-automation
+                npm run dev
+            ready: |
+                curl -s http://localhost:3000 > /dev/null && exit 0 || exit 1
+        triggeredBy:
+            - postEnvironmentStart
+

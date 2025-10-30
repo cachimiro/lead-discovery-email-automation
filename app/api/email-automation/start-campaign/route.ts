@@ -9,6 +9,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth-config';
 import { supabaseAdmin } from '@/lib/supabase';
 import { NextResponse } from 'next/server';
+import { cookies } from 'next/headers';
 
 interface StartCampaignRequest {
   campaignId: string;
@@ -66,6 +67,26 @@ function calculateFollowUpDate(
 }
 
 /**
+ * Replace template variables with user lead and journalist data
+ */
+function replaceVariables(text: string, userLead: any, journalist: any): string {
+  return text
+    // Journalist variables
+    .replace(/\{\{journalist_first_name\}\}/g, journalist?.first_name || '')
+    .replace(/\{\{journalist_last_name\}\}/g, journalist?.last_name || '')
+    .replace(/\{\{publication\}\}/g, journalist?.publication || journalist?.company || '')
+    .replace(/\{\{topic\}\}/g, journalist?.topic || journalist?.subject || '')
+    .replace(/\{\{journalist_industry\}\}/g, journalist?.industry || '')
+    .replace(/\{\{notes\}\}/g, journalist?.notes || journalist?.additional_notes || '')
+    // User/Lead variables
+    .replace(/\{\{user_first_name\}\}/g, userLead?.first_name || '')
+    .replace(/\{\{user_last_name\}\}/g, userLead?.last_name || '')
+    .replace(/\{\{user_email\}\}/g, userLead?.email || '')
+    .replace(/\{\{user_company\}\}/g, userLead?.company || '')
+    .replace(/\{\{user_industry\}\}/g, userLead?.industry || '');
+}
+
+/**
  * Reserve email slot atomically
  */
 async function reserveEmailSlot(
@@ -97,11 +118,29 @@ async function reserveEmailSlot(
   }
 }
 
+// Helper to get user (NextAuth or dev cookie)
+async function getUser() {
+  const session = await getServerSession(authOptions);
+  
+  if (session?.user) {
+    return session.user;
+  }
+  
+  // Fallback to dev cookie
+  const cookieStore = await cookies();
+  const devUserId = cookieStore.get('dev-user-id')?.value;
+  if (devUserId) {
+    return { id: devUserId } as any;
+  }
+  
+  return null;
+}
+
 export async function POST(request: Request) {
   try {
-    const session = await getServerSession(authOptions);
+    const user = await getUser();
     
-    if (!session || !session.user) {
+    if (!user) {
       return NextResponse.json(
         { error: 'Unauthorized' },
         { status: 401 }
@@ -148,15 +187,19 @@ export async function POST(request: Request) {
     }
     
     const supabase = supabaseAdmin();
-    const userId = session.user.id;
+    const userId = user.id;
+    
+    console.log('Starting campaign:', { campaignId, userId });
     
     // Get campaign details
     const { data: campaign, error: campaignError } = await supabase
-      .from('cold_outreach_email_campaigns')
-      .select('*, cold_outreach_contacts(*), cold_outreach_email_templates(*)')
+      .from('cold_outreach_campaigns')
+      .select('*')
       .eq('id', campaignId)
       .eq('user_id', userId)
       .single();
+    
+    console.log('Campaign query result:', { campaign, campaignError });
     
     if (campaignError || !campaign) {
       return NextResponse.json(
@@ -179,26 +222,64 @@ export async function POST(request: Request) {
       );
     }
     
-    // Get enabled templates
-    const enabledTemplates = campaign.cold_outreach_email_templates?.filter(
-      (t: any) => t.is_enabled
-    ) || [];
+    // Get enabled templates (templates are global, not campaign-specific)
+    const { data: templates, error: templatesError } = await supabase
+      .from('cold_outreach_email_templates')
+      .select('*')
+      .eq('user_id', userId)
+      .eq('is_enabled', true)
+      .order('template_number', { ascending: true});
     
-    if (enabledTemplates.length === 0) {
+    if (templatesError || !templates || templates.length === 0) {
       return NextResponse.json(
         { error: 'No enabled email templates found' },
         { status: 400 }
       );
     }
     
-    // Get contacts
-    const contacts = campaign.cold_outreach_contacts || [];
+    const enabledTemplates = templates;
+    
+    // Get contacts from pools (if pool_ids specified) or all contacts
+    let allContacts: any[] = [];
+    
+    if (campaign.pool_ids && campaign.pool_ids.length > 0) {
+      // Get contacts from specified pools
+      const { data: poolContacts, error: poolError } = await supabase.rpc('get_contacts_in_pools', {
+        p_user_id: userId,
+        p_pool_ids: campaign.pool_ids
+      });
+      
+      if (!poolError && poolContacts) {
+        allContacts = poolContacts;
+      }
+    } else {
+      // Get all contacts
+      const { data: allUserContacts } = await supabase
+        .from('cold_outreach_contacts')
+        .select('*')
+        .eq('user_id', userId);
+      
+      allContacts = allUserContacts || [];
+    }
+    
+    // Filter for valid data
+    const contacts = allContacts.filter((contact: any) => 
+      contact.email && 
+      contact.first_name && 
+      contact.last_name && 
+      contact.company
+    );
     
     if (contacts.length === 0) {
       return NextResponse.json(
-        { error: 'No contacts in campaign' },
+        { error: 'No valid contacts in campaign. All contacts are missing required data.' },
         { status: 400 }
       );
+    }
+    
+    const skippedContacts = allContacts.length - contacts.length;
+    if (skippedContacts > 0) {
+      console.log(`Skipping ${skippedContacts} contacts with incomplete data`);
     }
     
     // Schedule emails
@@ -214,12 +295,43 @@ export async function POST(request: Request) {
     // Set to start hour
     currentDate.setHours(sendingStartHour, 0, 0, 0);
     
+    // Get journalist leads for industry matching (first email only)
+    const { data: journalistLeads } = await supabase
+      .from('cold_outreach_journalist_leads')
+      .select('*')
+      .eq('user_id', userId)
+      .eq('is_active', true);
+
     // Schedule first email for each contact
     for (const contact of contacts) {
       if (!contact.email) continue;
       
       const template = enabledTemplates.find((t: any) => t.template_number === 1);
       if (!template) continue;
+
+      // Check industry match for FIRST EMAIL ONLY
+      // If contact has no industry or no matching journalist, mark as 'on_hold'
+      let emailStatus = 'pending';
+      const hasIndustry = contact.industry && contact.industry.trim() !== '';
+      
+      if (!hasIndustry) {
+        // No industry - put on hold until industry is added
+        emailStatus = 'on_hold';
+        console.log(`Contact ${contact.email} has no industry - first email on hold`);
+      } else if (journalistLeads && journalistLeads.length > 0) {
+        // Has industry - check if it matches any journalist
+        const hasMatch = journalistLeads.some((j: any) => 
+          j.industry && 
+          contact.industry &&
+          j.industry.toLowerCase() === contact.industry.toLowerCase()
+        );
+        
+        if (!hasMatch) {
+          // Has industry but no match - put on hold until match is found
+          emailStatus = 'on_hold';
+          console.log(`Contact ${contact.email} industry "${contact.industry}" has no matching journalist - first email on hold`);
+        }
+      }
       
       // Reserve slot
       const slot = await reserveEmailSlot(userId, currentDate);
@@ -240,24 +352,26 @@ export async function POST(request: Request) {
           user_id: userId,
           campaign_id: campaignId,
           recipient_email: contact.email,
-          subject: template.subject,
-          body: template.body,
+          subject: replaceVariables(template.subject, contact, contact),
+          body: replaceVariables(template.body, contact, contact),
           scheduled_for: retrySlot.scheduledTime!.toISOString(),
-          status: 'pending',
+          status: emailStatus, // 'pending' or 'on_hold' based on industry match
           is_follow_up: false,
-          follow_up_number: 1
+          follow_up_number: 1,
+          contact_id: contact.id
         });
       } else {
         emailsToQueue.push({
           user_id: userId,
           campaign_id: campaignId,
           recipient_email: contact.email,
-          subject: template.subject,
-          body: template.body,
+          subject: replaceVariables(template.subject, contact, contact),
+          body: replaceVariables(template.body, contact, contact),
           scheduled_for: slot.scheduledTime!.toISOString(),
-          status: 'pending',
+          status: emailStatus, // 'pending' or 'on_hold' based on industry match
           is_follow_up: false,
-          follow_up_number: 1
+          follow_up_number: 1,
+          contact_id: contact.id
         });
       }
     }
@@ -277,6 +391,8 @@ export async function POST(request: Request) {
     }
     
     // Schedule follow-ups if enabled
+    // NOTE: Follow-up emails are ALWAYS set to 'pending' regardless of industry match
+    // Industry matching only applies to the FIRST email
     const followUpEmails: any[] = [];
     
     for (let followUpNum = 2; followUpNum <= 3; followUpNum++) {
@@ -297,10 +413,11 @@ export async function POST(request: Request) {
           subject: template.subject,
           body: template.body,
           scheduled_for: followUpDate.toISOString(),
-          status: 'pending',
+          status: 'pending', // Always pending - no industry check for follow-ups
           is_follow_up: true,
           follow_up_number: followUpNum,
-          parent_email_id: firstEmail.id
+          parent_email_id: firstEmail.id,
+          contact_id: firstEmail.contact_id
         });
       }
     }

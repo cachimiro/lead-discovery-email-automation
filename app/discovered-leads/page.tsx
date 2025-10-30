@@ -1,23 +1,45 @@
 import { requireAuth } from "@/lib/auth";
 import { supabaseAdmin } from "@/lib/supabase";
 import Link from "next/link";
+import DiscoveredLeadsList from "@/components/discovered-leads-list";
 
 export default async function DiscoveredLeadsPage() {
   const user = await requireAuth();
   const supabase = supabaseAdmin();
 
-  const { data: leads, error } = await supabase
+  // Fetch both manual and AI discovered leads
+  const { data: manualLeads } = await supabase
     .from("cold_outreach_discovered_leads")
     .select("*")
     .eq("user_id", user.id)
     .order("created_at", { ascending: false });
 
-  if (error) {
-    console.error("Error fetching leads:", error);
-  }
+  const { data: aiLeads } = await supabase
+    .from("cold_outreach_ai_discovered_leads")
+    .select("*")
+    .eq("user_id", user.id)
+    .order("created_at", { ascending: false });
 
-  const validLeads = leads?.filter((lead) => lead.nb_status === "valid") || [];
-  const totalLeads = leads?.length || 0;
+  // Combine and normalize both lead types
+  const allLeads = [
+    ...(manualLeads || []).map(lead => ({
+      ...lead,
+      source: 'manual',
+      email: lead.email,
+      isValid: lead.nb_status === "valid"
+    })),
+    ...(aiLeads || []).map(lead => ({
+      ...lead,
+      source: 'ai',
+      email: lead.contact_email,
+      isValid: lead.email_status === "valid"
+    }))
+  ].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+
+  const validLeads = allLeads.filter(lead => lead.isValid);
+  const totalLeads = allLeads.length;
+  
+  console.log(`Discovered leads page: ${manualLeads?.length || 0} manual, ${aiLeads?.length || 0} AI, ${totalLeads} total`);
 
   return (
     <div className="space-y-8">
@@ -51,9 +73,9 @@ export default async function DiscoveredLeadsPage() {
         </div>
         <div className="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm">
           <div className="text-4xl font-bold text-gray-900 mb-2">
-            {leads?.filter((l) => l.source === "linkedin").length || 0}
+            {allLeads.filter((l) => l.source === "ai").length}
           </div>
-          <div className="text-gray-600 font-medium">From LinkedIn</div>
+          <div className="text-gray-600 font-medium">AI Discovered</div>
         </div>
       </div>
 
@@ -62,7 +84,7 @@ export default async function DiscoveredLeadsPage() {
           <h2 className="text-xl font-semibold text-gray-900">Your Discovered Leads</h2>
         </div>
 
-        {!leads || leads.length === 0 ? (
+        {allLeads.length === 0 ? (
           <div className="text-center py-12">
             <p className="text-gray-500 mb-4">No leads discovered yet</p>
             <Link
@@ -73,52 +95,7 @@ export default async function DiscoveredLeadsPage() {
             </Link>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b border-gray-200">
-                  <th className="text-left py-3 px-4 font-semibold text-gray-700">Email</th>
-                  <th className="text-left py-3 px-4 font-semibold text-gray-700">Name</th>
-                  <th className="text-left py-3 px-4 font-semibold text-gray-700">Title</th>
-                  <th className="text-left py-3 px-4 font-semibold text-gray-700">Company</th>
-                  <th className="text-left py-3 px-4 font-semibold text-gray-700">Domain</th>
-                  <th className="text-left py-3 px-4 font-semibold text-gray-700">Status</th>
-                  <th className="text-left py-3 px-4 font-semibold text-gray-700">Source</th>
-                  <th className="text-left py-3 px-4 font-semibold text-gray-700">Date</th>
-                </tr>
-              </thead>
-              <tbody>
-                {leads.map((lead) => (
-                  <tr key={lead.id} className="border-b border-gray-100 hover:bg-gray-50">
-                    <td className="py-3 px-4 text-sm text-gray-900">{lead.email}</td>
-                    <td className="py-3 px-4 text-sm text-gray-900">
-                      {lead.full_name || `${lead.first_name || ""} ${lead.last_name || ""}`.trim() || "-"}
-                    </td>
-                    <td className="py-3 px-4 text-sm text-gray-600">{lead.title || "-"}</td>
-                    <td className="py-3 px-4 text-sm text-gray-600">{lead.company_name || "-"}</td>
-                    <td className="py-3 px-4 text-sm text-gray-600">{lead.company_domain || "-"}</td>
-                    <td className="py-3 px-4">
-                      <span
-                        className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                          lead.nb_status === "valid"
-                            ? "bg-green-100 text-green-800"
-                            : lead.nb_status === "invalid"
-                            ? "bg-red-100 text-red-800"
-                            : "bg-gray-100 text-gray-800"
-                        }`}
-                      >
-                        {lead.nb_status || "unknown"}
-                      </span>
-                    </td>
-                    <td className="py-3 px-4 text-sm text-gray-600 capitalize">{lead.source || "-"}</td>
-                    <td className="py-3 px-4 text-sm text-gray-600">
-                      {lead.created_at ? new Date(lead.created_at).toLocaleDateString() : "-"}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <DiscoveredLeadsList leads={allLeads} />
         )}
       </div>
     </div>

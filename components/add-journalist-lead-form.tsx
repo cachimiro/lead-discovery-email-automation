@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 
 interface Props {
@@ -19,10 +19,76 @@ export default function AddJournalistLeadForm({ userId }: Props) {
     notes: "",
   });
   const [saving, setSaving] = useState(false);
-  const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [detectingIndustry, setDetectingIndustry] = useState(false);
+  const [industryConfidence, setIndustryConfidence] = useState<'high' | 'low' | null>(null);
+  const [industryDetected, setIndustryDetected] = useState(false);
+  const [message, setMessage] = useState<{ type: "success" | "error" | "warning"; text: string } | null>(null);
+
+  // Auto-detect industry when subject or publication changes
+  useEffect(() => {
+    const detectIndustry = async () => {
+      if (!formData.subject && !formData.publication) return;
+      if (formData.industry && industryDetected) return; // Don't override manual input
+
+      setDetectingIndustry(true);
+      setMessage(null);
+
+      try {
+        const response = await fetch("/api/detect-industry", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            subject: formData.subject,
+            publication: formData.publication,
+            journalist_name: formData.journalist_name,
+          }),
+        });
+
+        const data = await response.json();
+
+        if (data.industry) {
+          setFormData((prev) => ({ ...prev, industry: data.industry }));
+          setIndustryConfidence(data.confidence);
+          setIndustryDetected(true);
+          setMessage({ 
+            type: "success", 
+            text: `Industry detected: ${data.industry} (${data.confidence} confidence)` 
+          });
+        } else {
+          setIndustryConfidence('low');
+          setMessage({ 
+            type: "warning", 
+            text: "⚠️ Could not auto-detect industry. Please enter it manually." 
+          });
+        }
+      } catch (error) {
+        console.error("Error detecting industry:", error);
+        setMessage({ 
+          type: "warning", 
+          text: "⚠️ Could not auto-detect industry. Please enter it manually." 
+        });
+      } finally {
+        setDetectingIndustry(false);
+      }
+    };
+
+    // Debounce the detection
+    const timeoutId = setTimeout(detectIndustry, 1000);
+    return () => clearTimeout(timeoutId);
+  }, [formData.subject, formData.publication, formData.journalist_name]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    // Validate industry is present
+    if (!formData.industry || formData.industry.trim() === "") {
+      setMessage({ 
+        type: "error", 
+        text: "⚠️ Industry is required. Please enter an industry before saving." 
+      });
+      return;
+    }
+
     setSaving(true);
     setMessage(null);
 
@@ -48,6 +114,10 @@ export default function AddJournalistLeadForm({ userId }: Props) {
         linkedin_category: "",
         notes: "",
       });
+      setIndustryDetected(false);
+      setIndustryConfidence(null);
+      
+      // Refresh the page to show new lead
       router.refresh();
     } catch (error: any) {
       setMessage({ type: "error", text: error.message });
@@ -57,17 +127,25 @@ export default function AddJournalistLeadForm({ userId }: Props) {
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-    setFormData((prev) => ({ ...prev, [e.target.name]: e.target.value }));
+    const { name, value } = e.target;
+    setFormData((prev) => ({ ...prev, [name]: value }));
+    
+    // If user manually changes industry, mark it as manually set
+    if (name === 'industry') {
+      setIndustryDetected(false);
+    }
   };
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       {message && (
         <div
-          className={`rounded-lg p-4 text-sm ${
+          className={`rounded-lg p-4 text-sm font-medium ${
             message.type === "success"
-              ? "bg-green-50 text-green-800"
-              : "bg-red-50 text-red-800"
+              ? "bg-green-50 text-green-800 border border-green-200"
+              : message.type === "warning"
+              ? "bg-yellow-50 text-yellow-800 border border-yellow-200"
+              : "bg-red-50 text-red-800 border border-red-200"
           }`}
         >
           {message.text}
@@ -125,18 +203,41 @@ export default function AddJournalistLeadForm({ userId }: Props) {
 
         <div>
           <label htmlFor="industry" className="block text-sm font-medium text-slate-700">
-            Industry *
+            Industry * {detectingIndustry && <span className="text-blue-600 text-xs">(detecting...)</span>}
           </label>
-          <input
-            type="text"
-            id="industry"
-            name="industry"
-            value={formData.industry}
-            onChange={handleChange}
-            placeholder="Sleep"
-            className="mt-1 block w-full rounded-lg border border-slate-300 px-4 py-2 text-slate-900 placeholder-slate-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
-            required
-          />
+          <div className="relative">
+            <input
+              type="text"
+              id="industry"
+              name="industry"
+              value={formData.industry}
+              onChange={handleChange}
+              placeholder="e.g., Healthcare, Technology, Construction"
+              className={`mt-1 block w-full rounded-lg border px-4 py-2 text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 ${
+                industryConfidence === 'high' 
+                  ? 'border-green-300 focus:border-green-500 focus:ring-green-500 bg-green-50' 
+                  : industryConfidence === 'low' || (!formData.industry && (formData.subject || formData.publication))
+                  ? 'border-yellow-300 focus:border-yellow-500 focus:ring-yellow-500 bg-yellow-50'
+                  : 'border-slate-300 focus:border-blue-500 focus:ring-blue-500'
+              }`}
+              required
+            />
+            {industryConfidence === 'high' && (
+              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-green-600 text-sm">
+                ✓ Auto-detected
+              </span>
+            )}
+            {industryConfidence === 'low' && formData.industry && (
+              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-yellow-600 text-sm">
+                ⚠️ Manual
+              </span>
+            )}
+          </div>
+          {!formData.industry && (formData.subject || formData.publication) && !detectingIndustry && (
+            <p className="mt-1 text-xs text-yellow-700">
+              ⚠️ Industry is required. Please enter it manually if auto-detection failed.
+            </p>
+          )}
         </div>
 
         <div>

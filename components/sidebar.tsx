@@ -6,12 +6,11 @@ import { usePathname } from "next/navigation";
 const menuItems = [
   { href: "/dashboard", label: "Dashboard" },
   { href: "/discover", label: "Lead Discovery" },
+  // { href: "/ai-lead-discovery", label: "🤖 AI Lead Discovery" }, // Temporarily disabled
   { href: "/discovered-leads", label: "Discovered Leads" },
-  { href: "/sway-pr", label: "Sway PR" },
   { href: "/journalist-leads", label: "Journalist Leads" },
-  { href: "/email-matcher", label: "Match & Send" },
-  { href: "/email-campaigns", label: "Campaigns" },
-  { href: "/email-templates", label: "Templates" },
+  { href: "/lead-pools", label: "Lead Pools" },
+  { href: "/campaigns", label: "Campaigns" },
   { href: "/contacts", label: "Contacts" },
 ];
 

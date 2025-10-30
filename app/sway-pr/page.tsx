@@ -132,10 +132,10 @@ export default async function SwayPRPage() {
                     </div>
 
                     <Link
-                      href={`/email-matcher?leadId=${lead.id}`}
+                      href="/campaigns/new"
                       className="px-4 py-2 text-sm font-medium text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition-colors whitespace-nowrap"
                     >
-                      Match & Send
+                      Create Campaign
                     </Link>
                   </div>
                 </div>

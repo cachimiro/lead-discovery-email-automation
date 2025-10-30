@@ -51,6 +51,7 @@ export default function CampaignDashboardPage() {
     try {
       const response = await fetch(`/api/email-automation/stats?campaignId=${campaignId}`);
       const data = await response.json();
+      console.log('Stats API response:', data);
       setStats(data);
     } catch (error) {
       console.error('Error fetching stats:', error);
@@ -111,7 +112,7 @@ export default function CampaignDashboardPage() {
     );
   }
 
-  const progressPercent = stats.stats.total_emails > 0
+  const progressPercent = stats?.stats?.total_emails > 0
     ? ((stats.stats.sent + stats.stats.failed + stats.stats.cancelled + stats.stats.response_received) / stats.stats.total_emails) * 100
     : 0;
 
@@ -125,6 +126,12 @@ export default function CampaignDashboardPage() {
             <p className="mt-2 text-gray-600">Campaign Dashboard</p>
           </div>
           <div className="flex items-center gap-3">
+            <button
+              onClick={() => router.push(`/campaigns/${campaignId}/monitor`)}
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700"
+            >
+              🔍 Monitor
+            </button>
             <span className={`px-4 py-2 rounded-full text-sm font-semibold ${
               stats.campaign.status === 'active' 
                 ? 'bg-green-100 text-green-800' 

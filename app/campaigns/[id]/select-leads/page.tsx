@@ -31,7 +31,16 @@ export default function SelectLeadsPage() {
     try {
       const response = await fetch('/api/contacts');
       const data = await response.json();
-      setLeads(data || []);
+      
+      // Filter out leads with missing required data
+      const validLeads = (data || []).filter((lead: Lead) => {
+        return lead.email && 
+               lead.first_name && 
+               lead.last_name && 
+               lead.company;
+      });
+      
+      setLeads(validLeads);
     } catch (error) {
       console.error('Error fetching leads:', error);
     } finally {
@@ -125,7 +134,8 @@ export default function SelectLeadsPage() {
         <div className="grid grid-cols-3 gap-4 mb-6">
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
             <div className="text-2xl font-bold text-gray-900">{leads.length}</div>
-            <div className="text-sm text-gray-600">Total Leads</div>
+            <div className="text-sm text-gray-600">Valid Leads</div>
+            <div className="text-xs text-gray-500 mt-1">✅ Complete data</div>
           </div>
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
             <div className="text-2xl font-bold text-blue-600">{selectedLeads.size}</div>
@@ -241,6 +251,14 @@ export default function SelectLeadsPage() {
             </p>
           </div>
         )}
+        
+        {/* Data Quality Notice */}
+        <div className="mt-4 p-4 bg-green-50 border border-green-200 rounded-lg">
+          <p className="text-sm text-green-800">
+            ✅ <strong>Data Quality:</strong> Only showing leads with complete data (email, first name, last name, company). 
+            Leads with missing information are automatically filtered out.
+          </p>
+        </div>
       </div>
     </div>
   );

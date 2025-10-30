@@ -1,11 +1,10 @@
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth-config';
+import { getSession } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabase';
 import { NextResponse } from 'next/server';
 
 export async function POST(request: Request) {
   try {
-    const session = await getServerSession(authOptions);
+    const session = await getSession();
 
     if (!session || !session.user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -22,40 +21,45 @@ export async function POST(request: Request) {
       );
     }
 
-    // Create campaign
+    // Create campaign record
     const { data: campaign, error: campaignError } = await supabase
-      .from('cold_outreach_email_campaigns')
+      .from('cold_outreach_campaigns')
       .insert({
         user_id: session.user.id,
-        name,
+        name: name,
         status: 'draft'
       })
       .select()
       .single();
 
-    if (campaignError) throw campaignError;
+    if (campaignError) {
+      console.error('Error creating campaign:', campaignError);
+      throw campaignError;
+    }
 
-    // Create email templates
-    const templates = emails.map((email: any, index: number) => ({
-      user_id: session.user.id,
-      campaign_id: campaign.id,
-      template_number: email.number,
-      subject: email.subject,
-      body: email.body,
-      is_enabled: true,
-      sender_name: 'Mark Hayward',
-      sender_email: 'mark@swaypr.com'
-    }));
+    // Update or create email templates (templates are reusable, not campaign-specific)
+    for (const email of emails.filter((e: any) => e.enabled)) {
+      const { error: templateError } = await supabase
+        .from('cold_outreach_email_templates')
+        .upsert({
+          user_id: session.user.id,
+          template_number: email.number,
+          subject: email.subject,
+          body: email.body,
+          is_enabled: true,
+          sender_name: 'Mark Hayward',
+          sender_email: 'mark@swaypr.com'
+        }, {
+          onConflict: 'user_id,template_number'
+        });
 
-    const { error: templatesError } = await supabase
-      .from('cold_outreach_email_templates')
-      .insert(templates);
-
-    if (templatesError) throw templatesError;
+      if (templateError) throw templateError;
+    }
 
     return NextResponse.json({
       success: true,
       campaignId: campaign.id,
+      campaignName: campaign.name,
       message: 'Campaign created successfully'
     });
 

@@ -1,11 +1,10 @@
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth-config";
+import { getSession } from "@/lib/auth";
 import { supabaseAdmin } from "@/lib/supabase";
 import { NextResponse } from "next/server";
 
 export async function POST(request: Request) {
   try {
-    const session = await getServerSession(authOptions);
+    const session = await getSession();
 
     if (!session || !session.user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -13,7 +12,10 @@ export async function POST(request: Request) {
 
     const supabase = supabaseAdmin();
     const body = await request.json();
-    const { journalist_name, publication, subject, industry, deadline, linkedin_category, notes } = body;
+    const { first_name, last_name, email, publication, subject, industry, deadline, linkedin_category, notes } = body;
+
+    // Combine first_name and last_name into journalist_name
+    const journalist_name = `${first_name || ''} ${last_name || ''}`.trim();
 
     const { data, error } = await supabase
       .from("cold_outreach_journalist_leads")
@@ -25,7 +27,7 @@ export async function POST(request: Request) {
         industry,
         deadline,
         linkedin_category,
-        notes,
+        notes: notes || email, // Store email in notes if provided
       })
       .select()
       .single();
@@ -40,7 +42,7 @@ export async function POST(request: Request) {
 
 export async function DELETE(request: Request) {
   try {
-    const session = await getServerSession(authOptions);
+    const session = await getSession();
 
     if (!session || !session.user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });

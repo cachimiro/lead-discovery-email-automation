@@ -21,18 +21,33 @@ export async function POST(request: Request) {
       .single();
 
     if (!user) {
-      // Create dev user
+      // Create dev user with a fixed UUID (valid UUID format)
+      const devUserId = '00000000-0000-0000-0000-000000000001';
       const { data: newUser, error } = await supabase
         .from('cold_outreach_user_profiles')
         .insert({
+          id: devUserId,
           email,
           full_name: name,
         })
         .select()
         .single();
 
-      if (error) throw error;
-      user = newUser;
+      if (error) {
+        // If user already exists, just fetch it
+        if (error.code === '23505') {
+          const { data: existingUser } = await supabase
+            .from('cold_outreach_user_profiles')
+            .select('*')
+            .eq('email', email)
+            .single();
+          user = existingUser;
+        } else {
+          throw error;
+        }
+      } else {
+        user = newUser;
+      }
     }
 
     // Create a simple session (not secure, dev only)

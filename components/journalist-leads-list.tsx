@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import EditIndustryModal from "./edit-industry-modal";
+import ConfirmDialog from "./confirm-dialog";
 
 interface JournalistLead {
   id: string;
@@ -20,27 +22,97 @@ interface Props {
   leads: JournalistLead[];
 }
 
-export default function JournalistLeadsList({ leads }: Props) {
+export default function JournalistLeadsList({ leads: initialLeads }: Props) {
   const router = useRouter();
+  const [leads, setLeads] = useState(initialLeads);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [editingLead, setEditingLead] = useState<JournalistLead | null>(null);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [confirmDialog, setConfirmDialog] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    onConfirm: () => void;
+  }>({
+    isOpen: false,
+    title: "",
+    message: "",
+    onConfirm: () => {},
+  });
 
-  const handleDelete = async (id: string) => {
-    if (!confirm("Are you sure you want to delete this lead?")) return;
+  const handleDelete = (id: string) => {
+    const lead = leads.find(l => l.id === id);
+    setConfirmDialog({
+      isOpen: true,
+      title: "Delete Journalist Lead",
+      message: `Are you sure you want to delete the lead for ${lead?.journalist_name || 'this journalist'}?`,
+      onConfirm: async () => {
+        setConfirmDialog({ ...confirmDialog, isOpen: false });
+        setDeletingId(id);
+        try {
+          const response = await fetch(`/api/journalist-leads?id=${id}`, {
+            method: "DELETE",
+          });
 
-    setDeletingId(id);
-    try {
-      const response = await fetch(`/api/journalist-leads?id=${id}`, {
-        method: "DELETE",
-      });
+          const data = await response.json();
 
-      if (!response.ok) throw new Error("Failed to delete lead");
+          if (!response.ok) {
+            throw new Error(data.error || "Failed to delete lead");
+          }
 
-      router.refresh();
-    } catch (error) {
-      alert("Failed to delete lead. Please try again.");
-    } finally {
-      setDeletingId(null);
+          setLeads(leads.filter(l => l.id !== id));
+        } catch (error: any) {
+          console.error('Delete error:', error);
+          alert(`Failed to delete lead: ${error.message}`);
+        } finally {
+          setDeletingId(null);
+        }
+      },
+    });
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedIds.length === leads.length) {
+      setSelectedIds([]);
+    } else {
+      setSelectedIds(leads.map(l => l.id));
     }
+  };
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds(prev => 
+      prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
+    );
+  };
+
+  const handleBulkDelete = () => {
+    if (selectedIds.length === 0) return;
+    
+    setConfirmDialog({
+      isOpen: true,
+      title: "Delete Multiple Journalist Leads",
+      message: `Are you sure you want to delete ${selectedIds.length} journalist lead(s)?`,
+      onConfirm: async () => {
+        setConfirmDialog({ ...confirmDialog, isOpen: false });
+        setIsDeleting(true);
+        try {
+          const deletePromises = selectedIds.map(id =>
+            fetch(`/api/journalist-leads?id=${id}`, { method: "DELETE" })
+          );
+
+          await Promise.all(deletePromises);
+          
+          setLeads(leads.filter(l => !selectedIds.includes(l.id)));
+          setSelectedIds([]);
+        } catch (error: any) {
+          console.error('Bulk delete error:', error);
+          alert(`Failed to delete some leads: ${error.message}`);
+        } finally {
+          setIsDeleting(false);
+        }
+      },
+    });
   };
 
   const isExpired = (deadline: string) => {
@@ -72,13 +144,36 @@ export default function JournalistLeadsList({ leads }: Props) {
   }
 
   return (
-    <div className="overflow-x-auto">
-      <table className="w-full">
-        <thead>
-          <tr className="border-b border-white/20">
-            <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider gradient-text">
-              Journalist
-            </th>
+    <div>
+      {selectedIds.length > 0 && (
+        <div className="bg-blue-50 border-b border-blue-200 px-6 py-3 flex items-center justify-between">
+          <span className="text-sm font-medium text-blue-900">
+            {selectedIds.length} lead(s) selected
+          </span>
+          <button
+            onClick={handleBulkDelete}
+            disabled={isDeleting}
+            className="px-4 py-2 bg-red-600 text-white rounded-lg font-medium hover:bg-red-700 transition-colors disabled:opacity-50"
+          >
+            {isDeleting ? "Deleting..." : `Delete ${selectedIds.length} Lead(s)`}
+          </button>
+        </div>
+      )}
+      <div className="overflow-x-auto">
+        <table className="w-full">
+          <thead>
+            <tr className="border-b border-white/20">
+              <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider gradient-text w-12">
+                <input
+                  type="checkbox"
+                  checked={selectedIds.length === leads.length && leads.length > 0}
+                  onChange={toggleSelectAll}
+                  className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                />
+              </th>
+              <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider gradient-text">
+                Journalist
+              </th>
             <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider gradient-text">
               Subject
             </th>
@@ -103,6 +198,14 @@ export default function JournalistLeadsList({ leads }: Props) {
                 style={{ animationDelay: `${index * 0.05}s` }}
               >
                 <td className="px-6 py-4">
+                  <input
+                    type="checkbox"
+                    checked={selectedIds.includes(lead.id)}
+                    onChange={() => toggleSelect(lead.id)}
+                    className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                  />
+                </td>
+                <td className="px-6 py-4">
                   <div className="text-sm font-semibold text-slate-900">
                     {lead.journalist_name}
                   </div>
@@ -114,9 +217,15 @@ export default function JournalistLeadsList({ leads }: Props) {
                   </div>
                 </td>
                 <td className="px-6 py-4">
-                  <span className="inline-flex rounded-full gradient-primary px-3 py-1 text-xs font-semibold text-white shadow-sm">
-                    {lead.industry}
-                  </span>
+                  {lead.industry && lead.industry.trim() !== '' ? (
+                    <span className="inline-flex rounded-full gradient-primary px-3 py-1 text-xs font-semibold text-white shadow-sm">
+                      {lead.industry}
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1 rounded-full bg-yellow-100 px-3 py-1 text-xs font-semibold text-yellow-800 border border-yellow-300">
+                      ⚠️ Missing Industry
+                    </span>
+                  )}
                 </td>
                 <td className="px-6 py-4">
                   <div className="text-sm font-medium text-slate-900">
@@ -127,19 +236,50 @@ export default function JournalistLeadsList({ leads }: Props) {
                   )}
                 </td>
                 <td className="px-6 py-4 text-right text-sm">
-                  <button
-                    onClick={() => handleDelete(lead.id)}
-                    disabled={deletingId === lead.id}
-                    className="text-red-500 hover:text-red-700 font-medium transition-colors disabled:opacity-50"
-                  >
-                    {deletingId === lead.id ? "Deleting..." : "Delete"}
-                  </button>
+                  <div className="flex items-center justify-end gap-3">
+                    {(!lead.industry || lead.industry.trim() === '') && (
+                      <button
+                        onClick={() => setEditingLead(lead)}
+                        className="text-yellow-600 hover:text-yellow-700 font-medium transition-colors"
+                      >
+                        Add Industry
+                      </button>
+                    )}
+                    <button
+                      onClick={() => handleDelete(lead.id)}
+                      disabled={deletingId === lead.id}
+                      className="text-red-500 hover:text-red-700 font-medium transition-colors disabled:opacity-50"
+                    >
+                      {deletingId === lead.id ? "Deleting..." : "Delete"}
+                    </button>
+                  </div>
                 </td>
               </tr>
             );
           })}
         </tbody>
       </table>
+      </div>
+
+      {editingLead && (
+        <EditIndustryModal
+          leadId={editingLead.id}
+          currentIndustry={editingLead.industry || ''}
+          journalistName={editingLead.journalist_name}
+          onClose={() => setEditingLead(null)}
+        />
+      )}
+
+      <ConfirmDialog
+        isOpen={confirmDialog.isOpen}
+        title={confirmDialog.title}
+        message={confirmDialog.message}
+        confirmText="Delete"
+        cancelText="Cancel"
+        onConfirm={confirmDialog.onConfirm}
+        onCancel={() => setConfirmDialog({ ...confirmDialog, isOpen: false })}
+        type="danger"
+      />
     </div>
   );
 }

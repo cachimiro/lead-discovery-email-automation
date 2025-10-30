@@ -1,12 +1,28 @@
 import { requireAuth } from "@/lib/auth";
 import Link from "next/link";
 import SignOutButton from "@/components/sign-out-button";
+import { supabaseAdmin } from "@/lib/supabase";
 
 export default async function DashboardPage() {
   const user = await requireAuth();
   const firstName = user.name?.split(' ')[0] || user.email?.split('@')[0] || 'there';
   const hour = new Date().getHours();
   const greeting = hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening';
+
+  // Fetch real data from database
+  const supabase = supabaseAdmin();
+  
+  const [journalistLeadsResult, contactsResult, campaignsResult] = await Promise.all([
+    supabase.from('cold_outreach_journalist_leads').select('id', { count: 'exact', head: true }).eq('user_id', user.id).eq('is_active', true),
+    supabase.from('cold_outreach_contacts').select('id', { count: 'exact', head: true }).eq('user_id', user.id),
+    supabase.from('cold_outreach_email_campaigns').select('id', { count: 'exact', head: true }).eq('user_id', user.id)
+  ]);
+
+  const stats = {
+    journalistLeads: journalistLeadsResult.count || 0,
+    contacts: contactsResult.count || 0,
+    campaigns: campaignsResult.count || 0
+  };
 
   return (
     <div className="space-y-8 max-w-7xl mx-auto">
@@ -27,18 +43,24 @@ export default async function DashboardPage() {
       </div>
 
       {/* Quick Stats */}
-      <div className="grid gap-8 md:grid-cols-4">
-        {[
-          { label: 'Active Leads', value: '12' },
-          { label: 'Contacts', value: '48' },
-          { label: 'Campaigns', value: '3' },
-          { label: 'Templates', value: '3' },
-        ].map((stat, i) => (
-          <div key={i} className="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm">
-            <div className="text-3xl font-bold text-gray-900 mb-1">{stat.value}</div>
-            <div className="text-sm text-gray-600">{stat.label}</div>
-          </div>
-        ))}
+      <div className="grid gap-8 md:grid-cols-3">
+        <Link href="/journalist-leads" className="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm hover:shadow-md hover:border-blue-200 transition-all cursor-pointer">
+          <div className="text-3xl font-bold text-gray-900 mb-1">{stats.journalistLeads}</div>
+          <div className="text-sm text-gray-600">Journalist Leads</div>
+          <div className="text-xs text-blue-600 mt-2">Click to view →</div>
+        </Link>
+
+        <Link href="/contacts" className="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm hover:shadow-md hover:border-blue-200 transition-all cursor-pointer">
+          <div className="text-3xl font-bold text-gray-900 mb-1">{stats.contacts}</div>
+          <div className="text-sm text-gray-600">Contacts</div>
+          <div className="text-xs text-blue-600 mt-2">Click to view →</div>
+        </Link>
+
+        <Link href="/campaigns" className="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm hover:shadow-md hover:border-blue-200 transition-all cursor-pointer">
+          <div className="text-3xl font-bold text-gray-900 mb-1">{stats.campaigns}</div>
+          <div className="text-sm text-gray-600">Campaigns</div>
+          <div className="text-xs text-blue-600 mt-2">Click to view →</div>
+        </Link>
       </div>
 
       {/* Main Actions */}
@@ -46,26 +68,26 @@ export default async function DashboardPage() {
         <h2 className="text-2xl font-bold text-gray-900 mb-6">Quick Actions</h2>
         <div className="grid gap-8 md:grid-cols-3">
           <Link
-            href="/journalist-leads"
-            className="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm hover:shadow-md hover:border-blue-200 transition-all"
+            href="/campaigns/new"
+            className="bg-gradient-to-br from-blue-600 to-blue-700 rounded-2xl p-6 shadow-lg hover:shadow-xl transition-all text-white"
           >
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">
-              Journalist Leads
+            <h3 className="text-lg font-semibold mb-2">
+              🚀 Create Campaign
             </h3>
-            <p className="text-gray-600 text-sm">
-              Manage journalist opportunities and deadlines
+            <p className="text-blue-100 text-sm">
+              Create a new email outreach campaign with auto-matching
             </p>
           </Link>
 
           <Link
-            href="/email-matcher"
+            href="/journalist-leads"
             className="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm hover:shadow-md hover:border-blue-200 transition-all"
           >
             <h3 className="text-lg font-semibold text-gray-900 mb-2">
-              Match & Send
+              ✍️ Journalist Leads
             </h3>
             <p className="text-gray-600 text-sm">
-              Match contacts with leads and send personalized emails
+              Manage journalist opportunities and deadlines
             </p>
           </Link>
 
@@ -74,7 +96,7 @@ export default async function DashboardPage() {
             className="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm hover:shadow-md hover:border-blue-200 transition-all"
           >
             <h3 className="text-lg font-semibold text-gray-900 mb-2">
-              Contact Database
+              👥 Contact Database
             </h3>
             <p className="text-gray-600 text-sm">
               Manage and organize your contact list

@@ -46,7 +46,7 @@ export default function AddContactForm({ userId }: Props) {
         title: "",
         notes: "",
       });
-      router.refresh();
+      window.location.reload();
     } catch (error: any) {
       setMessage({ type: "error", text: error.message });
     } finally {

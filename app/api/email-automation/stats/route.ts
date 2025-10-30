@@ -8,12 +8,31 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth-config';
 import { supabaseAdmin } from '@/lib/supabase';
 import { NextResponse } from 'next/server';
+import { cookies } from 'next/headers';
+
+// Helper to get user (NextAuth or dev cookie)
+async function getUser() {
+  const session = await getServerSession(authOptions);
+  
+  if (session?.user) {
+    return session.user;
+  }
+  
+  // Fallback to dev cookie
+  const cookieStore = await cookies();
+  const devUserId = cookieStore.get('dev-user-id')?.value;
+  if (devUserId) {
+    return { id: devUserId } as any;
+  }
+  
+  return null;
+}
 
 export async function GET(request: Request) {
   try {
-    const session = await getServerSession(authOptions);
+    const user = await getUser();
     
-    if (!session || !session.user) {
+    if (!user) {
       return NextResponse.json(
         { error: 'Unauthorized' },
         { status: 401 }
@@ -24,12 +43,12 @@ export async function GET(request: Request) {
     const campaignId = searchParams.get('campaignId');
     
     const supabase = supabaseAdmin();
-    const userId = session.user.id;
+    const userId = user.id;
     
     if (campaignId) {
       // Get stats for specific campaign
       const { data: campaign } = await supabase
-        .from('cold_outreach_email_campaigns')
+        .from('cold_outreach_campaigns')
         .select('*')
         .eq('id', campaignId)
         .eq('user_id', userId)

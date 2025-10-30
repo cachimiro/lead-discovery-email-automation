@@ -113,7 +113,7 @@ export default function EmailTemplateForm({
       if (!response.ok) throw new Error("Failed to save template");
 
       setMessage({ type: "success", text: "Template saved successfully!" });
-      router.refresh();
+      setTimeout(() => window.location.reload(), 1000);
     } catch (error) {
       setMessage({ type: "error", text: "Failed to save template. Please try again." });
     } finally {

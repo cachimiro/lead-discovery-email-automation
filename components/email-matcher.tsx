@@ -221,7 +221,7 @@ export default function EmailMatcher({ leads, contacts, templates, userId }: Pro
         type: "success",
         text: `Successfully created ${totalEmails} email campaigns! (${contacts.length} contacts × ${enabledTemplates.length} enabled template${enabledTemplates.length > 1 ? 's' : ''})`,
       });
-      router.refresh();
+      setTimeout(() => window.location.reload(), 1500);
     } catch (error: any) {
       setMessage({ type: "error", text: error.message });
     } finally {
