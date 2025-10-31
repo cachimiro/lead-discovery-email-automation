@@ -15,9 +15,7 @@
 import { supabaseAdmin } from '@/lib/supabase';
 import { NextResponse } from 'next/server';
 import { handleEmailError, retryWithBackoff } from '@/lib/email-automation/error-handler';
-
-// SendGrid will be installed: npm install @sendgrid/mail
-// import sgMail from '@sendgrid/mail';
+import { sendEmailViaOAuth } from '@/lib/email-automation/oauth-email-sender';
 
 interface EmailToSend {
   id: string;
@@ -28,55 +26,6 @@ interface EmailToSend {
   body: string;
   scheduled_for: string;
   retry_count: number;
-}
-
-/**
- * Send email via SendGrid
- */
-async function sendEmailViaSendGrid(email: EmailToSend): Promise<{
-  success: boolean;
-  messageId?: string;
-  error?: Error;
-}> {
-  try {
-    // TODO: Uncomment when SendGrid is set up
-    // sgMail.setApiKey(process.env.SENDGRID_API_KEY!);
-    
-    // const msg = {
-    //   to: email.recipient_email,
-    //   from: process.env.SENDGRID_VERIFIED_SENDER!,
-    //   subject: email.subject,
-    //   html: email.body,
-    //   trackingSettings: {
-    //     clickTracking: { enable: true },
-    //     openTracking: { enable: true }
-    //   },
-    //   customArgs: {
-    //     email_queue_id: email.id,
-    //     campaign_id: email.campaign_id,
-    //     user_id: email.user_id
-    //   }
-    // };
-    
-    // const [response] = await sgMail.send(msg);
-    // const messageId = response.headers['x-message-id'];
-    
-    // For now, simulate success
-    console.log(`[SIMULATION] Sending email to ${email.recipient_email}`);
-    await new Promise(resolve => setTimeout(resolve, 100)); // Simulate API call
-    
-    return {
-      success: true,
-      messageId: `sim_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
-    };
-    
-  } catch (error: any) {
-    console.error('SendGrid error:', error);
-    return {
-      success: false,
-      error: error
-    };
-  }
 }
 
 /**
@@ -95,9 +44,9 @@ async function processEmail(email: EmailToSend): Promise<void> {
       })
       .eq('id', email.id);
     
-    // Send via SendGrid with retry logic
+    // Send via OAuth (Gmail or Microsoft) with retry logic
     const result = await retryWithBackoff(
-      () => sendEmailViaSendGrid(email),
+      () => sendEmailViaOAuth(email),
       {
         emailQueueId: email.id,
         userId: email.user_id,
@@ -114,7 +63,7 @@ async function processEmail(email: EmailToSend): Promise<void> {
         .update({
           status: 'sent',
           sent_at: new Date().toISOString(),
-          sendgrid_message_id: result.messageId,
+          sendgrid_message_id: result.messageId, // Keeping column name for compatibility
           updated_at: new Date().toISOString()
         })
         .eq('id', email.id);
@@ -125,9 +74,9 @@ async function processEmail(email: EmailToSend): Promise<void> {
         email_queue_id: email.id,
         campaign_id: email.campaign_id,
         event_type: 'sent',
-        message: `Email sent successfully to ${email.recipient_email}`,
+        message: `Email sent successfully to ${email.recipient_email} via OAuth`,
         metadata: {
-          sendgrid_message_id: result.messageId,
+          message_id: result.messageId,
           scheduled_for: email.scheduled_for,
           sent_at: new Date().toISOString()
         }

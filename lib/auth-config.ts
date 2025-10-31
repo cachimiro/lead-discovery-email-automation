@@ -21,7 +21,8 @@ export const authOptions: NextAuthOptions = {
         params: {
           prompt: "consent",
           access_type: "offline",
-          response_type: "code"
+          response_type: "code",
+          scope: "openid profile email https://www.googleapis.com/auth/gmail.send"
         }
       }
     }),
@@ -31,7 +32,7 @@ export const authOptions: NextAuthOptions = {
       tenantId: process.env.MICROSOFT_TENANT_ID!,
       authorization: {
         params: {
-          scope: "openid profile email User.Read"
+          scope: "openid profile email User.Read Mail.Send"
         }
       }
     }),
@@ -71,6 +72,26 @@ export const authOptions: NextAuthOptions = {
               updated_at: new Date().toISOString(),
             })
             .eq("id", existingUser.id);
+        }
+
+        // Store OAuth tokens for email sending
+        if (account?.access_token) {
+          const provider = account.provider === 'google' ? 'google' : 'microsoft';
+          
+          await supabase
+            .from("cold_outreach_oauth_tokens")
+            .upsert({
+              user_id: existingUser?.id || userId,
+              provider: provider,
+              access_token: account.access_token,
+              refresh_token: account.refresh_token,
+              token_type: account.token_type || 'Bearer',
+              expires_at: account.expires_at ? new Date(account.expires_at * 1000).toISOString() : null,
+              scope: account.scope,
+              updated_at: new Date().toISOString()
+            }, {
+              onConflict: 'user_id,provider'
+            });
         }
 
         return true;

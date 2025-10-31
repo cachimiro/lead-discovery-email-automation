@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint || echo \"skip\""
+    "lint": "next lint || echo \"skip\"",
+    "test:oauth-email": "tsx scripts/test-oauth-email.ts"
   },
   "dependencies": {
     "@sendgrid/mail": "^8.1.6",
