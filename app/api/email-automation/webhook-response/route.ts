@@ -15,6 +15,7 @@
 import { supabaseAdmin } from '@/lib/supabase';
 import { NextResponse } from 'next/server';
 import crypto from 'crypto';
+import { analyzeEmailResponse, requiresImmediateAttention, getResponsePriority } from '@/lib/ai-response-analyzer';
 
 interface InboundEmail {
   from: string;
@@ -281,7 +282,25 @@ export async function POST(request: Request) {
       });
     }
     
-    // Record the response
+    // Analyze response with AI (if OpenAI key is available)
+    let aiAnalysis = null;
+    if (process.env.OPENAI_API_KEY) {
+      try {
+        console.log('🤖 Analyzing response with AI...');
+        aiAnalysis = await analyzeEmailResponse(
+          originalEmail.subject,
+          originalEmail.body,
+          email.subject,
+          email.text
+        );
+        console.log(`✅ AI Analysis: ${aiAnalysis.category} (${aiAnalysis.sentiment}) - Confidence: ${(aiAnalysis.confidenceScore * 100).toFixed(0)}%`);
+      } catch (error) {
+        console.error('AI analysis failed:', error);
+        // Continue without AI analysis
+      }
+    }
+
+    // Record the response with AI analysis
     const { data: response, error: responseError } = await supabase
       .from('cold_outreach_email_responses')
       .insert({
@@ -295,7 +314,14 @@ export async function POST(request: Request) {
         thread_id: threadId,
         message_id: threadId,
         processed: false,
-        cancelled_follow_ups: false
+        cancelled_follow_ups: false,
+        // AI analysis fields
+        ai_sentiment: aiAnalysis?.sentiment || null,
+        ai_category: aiAnalysis?.category || null,
+        ai_confidence_score: aiAnalysis?.confidenceScore || null,
+        ai_summary: aiAnalysis?.summary || null,
+        ai_suggested_action: aiAnalysis?.suggestedAction || null,
+        ai_analysis_completed_at: aiAnalysis ? new Date().toISOString() : null
       })
       .select()
       .single();
@@ -326,19 +352,29 @@ export async function POST(request: Request) {
       })
       .eq('id', originalEmail.id);
     
-    // Log the response
+    // Log the response with AI metadata
     await supabase.from('cold_outreach_email_log').insert({
       user_id: originalEmail.user_id,
       email_queue_id: originalEmail.id,
       campaign_id: originalEmail.campaign_id,
       event_type: 'response_received',
-      message: `Response received from ${fromEmail}`,
+      message: `Response received from ${fromEmail}${aiAnalysis ? ` - AI: ${aiAnalysis.category} (${aiAnalysis.sentiment})` : ''}`,
       metadata: {
         from_email: fromEmail,
         subject: email.subject,
         thread_id: threadId,
         follow_ups_cancelled: cancelledCount
-      }
+      },
+      ai_metadata: aiAnalysis ? {
+        sentiment: aiAnalysis.sentiment,
+        category: aiAnalysis.category,
+        confidence: aiAnalysis.confidenceScore,
+        summary: aiAnalysis.summary,
+        suggested_action: aiAnalysis.suggestedAction,
+        reasoning: aiAnalysis.reasoning,
+        requires_attention: requiresImmediateAttention(aiAnalysis),
+        priority_score: getResponsePriority(aiAnalysis)
+      } : null
     });
     
     console.log(`✅ Response processed: ${cancelledCount} follow-ups cancelled\n`);
@@ -346,7 +382,15 @@ export async function POST(request: Request) {
     return NextResponse.json({
       success: true,
       message: 'Response processed successfully',
-      follow_ups_cancelled: cancelledCount
+      follow_ups_cancelled: cancelledCount,
+      ai_analysis: aiAnalysis ? {
+        sentiment: aiAnalysis.sentiment,
+        category: aiAnalysis.category,
+        confidence: aiAnalysis.confidenceScore,
+        summary: aiAnalysis.summary,
+        suggested_action: aiAnalysis.suggestedAction,
+        requires_attention: requiresImmediateAttention(aiAnalysis)
+      } : null
     });
     
   } catch (error: any) {
