@@ -390,19 +390,19 @@ export async function POST(request: Request) {
       );
     }
     
-    // Schedule follow-ups if enabled
+    // Schedule follow-ups for ONLY enabled templates
     // NOTE: Follow-up emails are ALWAYS set to 'pending' regardless of industry match
     // Industry matching only applies to the FIRST email
     const followUpEmails: any[] = [];
     
-    for (let followUpNum = 2; followUpNum <= 3; followUpNum++) {
-      const template = enabledTemplates.find((t: any) => t.template_number === followUpNum);
-      if (!template) continue;
-      
+    // Only create follow-ups for templates that are actually enabled
+    const followUpTemplates = enabledTemplates.filter((t: any) => t.template_number > 1);
+    
+    for (const template of followUpTemplates) {
       for (const firstEmail of queuedEmails || []) {
         const followUpDate = calculateFollowUpDate(
           new Date(firstEmail.scheduled_for),
-          followUpDelayDays,
+          followUpDelayDays * (template.template_number - 1), // Multiply delay by template number
           skipWeekends
         );
         
@@ -415,7 +415,7 @@ export async function POST(request: Request) {
           scheduled_for: followUpDate.toISOString(),
           status: 'pending', // Always pending - no industry check for follow-ups
           is_follow_up: true,
-          follow_up_number: followUpNum,
+          follow_up_number: template.template_number,
           parent_email_id: firstEmail.id,
           contact_id: firstEmail.contact_id
         });

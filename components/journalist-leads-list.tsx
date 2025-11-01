@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import EditIndustryModal from "./edit-industry-modal";
+import EditJournalistLeadModal from "./edit-journalist-lead-modal";
 import ConfirmDialog from "./confirm-dialog";
 
 interface JournalistLead {
@@ -27,6 +28,7 @@ export default function JournalistLeadsList({ leads: initialLeads }: Props) {
   const [leads, setLeads] = useState(initialLeads);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [editingLead, setEditingLead] = useState<JournalistLead | null>(null);
+  const [editingFullLead, setEditingFullLead] = useState<JournalistLead | null>(null);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [isDeleting, setIsDeleting] = useState(false);
   const [confirmDialog, setConfirmDialog] = useState<{
@@ -246,6 +248,12 @@ export default function JournalistLeadsList({ leads: initialLeads }: Props) {
                       </button>
                     )}
                     <button
+                      onClick={() => setEditingFullLead(lead)}
+                      className="text-blue-600 hover:text-blue-700 font-medium transition-colors"
+                    >
+                      Edit
+                    </button>
+                    <button
                       onClick={() => handleDelete(lead.id)}
                       disabled={deletingId === lead.id}
                       className="text-red-500 hover:text-red-700 font-medium transition-colors disabled:opacity-50"
@@ -267,6 +275,17 @@ export default function JournalistLeadsList({ leads: initialLeads }: Props) {
           currentIndustry={editingLead.industry || ''}
           journalistName={editingLead.journalist_name}
           onClose={() => setEditingLead(null)}
+        />
+      )}
+
+      {editingFullLead && (
+        <EditJournalistLeadModal
+          lead={editingFullLead}
+          onClose={() => setEditingFullLead(null)}
+          onUpdate={(updatedLead) => {
+            setLeads(leads.map(l => l.id === updatedLead.id ? updatedLead : l));
+            setEditingFullLead(null);
+          }}
         />
       )}
 
