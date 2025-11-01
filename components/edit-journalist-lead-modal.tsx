@@ -58,6 +58,10 @@ export default function EditJournalistLeadModal({ lead, onClose, onUpdate }: Pro
   });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const [customIndustry, setCustomIndustry] = useState('');
+  const [showCustomIndustry, setShowCustomIndustry] = useState(
+    lead.industry && !INDUSTRIES.includes(lead.industry)
+  );
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -65,12 +69,18 @@ export default function EditJournalistLeadModal({ lead, onClose, onUpdate }: Pro
     setSaving(true);
 
     try {
+      // Use custom industry if "Other" is selected and custom value is provided
+      const finalIndustry = showCustomIndustry && customIndustry 
+        ? customIndustry 
+        : formData.industry;
+
       const response = await fetch('/api/journalist-leads', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           id: lead.id,
-          ...formData
+          ...formData,
+          industry: finalIndustry
         })
       });
 
@@ -162,9 +172,18 @@ export default function EditJournalistLeadModal({ lead, onClose, onUpdate }: Pro
                 Industry *
               </label>
               <select
-                value={formData.industry}
-                onChange={(e) => setFormData({ ...formData, industry: e.target.value })}
-                required
+                value={showCustomIndustry ? 'Other' : formData.industry}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  if (value === 'Other') {
+                    setShowCustomIndustry(true);
+                    setCustomIndustry(formData.industry && !INDUSTRIES.includes(formData.industry) ? formData.industry : '');
+                  } else {
+                    setShowCustomIndustry(false);
+                    setFormData({ ...formData, industry: value });
+                  }
+                }}
+                required={!showCustomIndustry}
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               >
                 <option value="">Select industry...</option>
@@ -174,6 +193,29 @@ export default function EditJournalistLeadModal({ lead, onClose, onUpdate }: Pro
                   </option>
                 ))}
               </select>
+              {showCustomIndustry && (
+                <div className="mt-2">
+                  <input
+                    type="text"
+                    value={customIndustry}
+                    onChange={(e) => setCustomIndustry(e.target.value)}
+                    placeholder="Enter custom industry..."
+                    required
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowCustomIndustry(false);
+                      setCustomIndustry('');
+                      setFormData({ ...formData, industry: '' });
+                    }}
+                    className="mt-2 text-sm text-blue-600 hover:text-blue-700"
+                  >
+                    ← Back to dropdown
+                  </button>
+                </div>
+              )}
               <p className="mt-1 text-xs text-gray-500">
                 Used to match with contacts in the same industry
               </p>
