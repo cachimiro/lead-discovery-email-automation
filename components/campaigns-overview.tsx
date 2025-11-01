@@ -41,6 +41,8 @@ export default function CampaignsOverview({ campaigns: initialCampaigns }: Props
   const [loadingStats, setLoadingStats] = useState<Record<string, boolean>>({});
   const [togglingStatus, setTogglingStatus] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [selectedCampaigns, setSelectedCampaigns] = useState<Set<string>>(new Set());
+  const [bulkDeleting, setBulkDeleting] = useState(false);
   const [confirmDialog, setConfirmDialog] = useState<{
     isOpen: boolean;
     title: string;
@@ -152,11 +154,76 @@ export default function CampaignsOverview({ campaigns: initialCampaigns }: Props
           }
 
           setCampaigns(prev => prev.filter(c => c.id !== campaign.id));
+          setSelectedCampaigns(prev => {
+            const newSet = new Set(prev);
+            newSet.delete(campaign.id);
+            return newSet;
+          });
         } catch (error: any) {
           console.error('Delete error:', error);
           alert(`Failed to delete campaign: ${error.message}`);
         } finally {
           setDeletingId(null);
+        }
+      }
+    });
+  };
+
+  const toggleSelectCampaign = (campaignId: string) => {
+    setSelectedCampaigns(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(campaignId)) {
+        newSet.delete(campaignId);
+      } else {
+        newSet.add(campaignId);
+      }
+      return newSet;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedCampaigns.size === campaigns.length) {
+      setSelectedCampaigns(new Set());
+    } else {
+      setSelectedCampaigns(new Set(campaigns.map(c => c.id)));
+    }
+  };
+
+  const bulkDeleteCampaigns = () => {
+    const count = selectedCampaigns.size;
+    if (count === 0) return;
+
+    setConfirmDialog({
+      isOpen: true,
+      title: 'Delete Multiple Campaigns',
+      message: `Are you sure you want to delete ${count} campaign${count > 1 ? 's' : ''}? This will delete all associated emails and cannot be undone.`,
+      confirmText: 'Delete All',
+      confirmClass: 'bg-red-600 hover:bg-red-700',
+      onConfirm: async () => {
+        setConfirmDialog({ ...confirmDialog, isOpen: false });
+        setBulkDeleting(true);
+        
+        try {
+          const deletePromises = Array.from(selectedCampaigns).map(id =>
+            fetch(`/api/campaigns?id=${id}`, { method: 'DELETE' })
+          );
+
+          const results = await Promise.allSettled(deletePromises);
+          
+          const failed = results.filter(r => r.status === 'rejected').length;
+          
+          if (failed > 0) {
+            alert(`${failed} campaign(s) failed to delete`);
+          }
+
+          setCampaigns(prev => prev.filter(c => !selectedCampaigns.has(c.id)));
+          setSelectedCampaigns(new Set());
+          router.refresh();
+        } catch (error: any) {
+          console.error('Bulk delete error:', error);
+          alert(`Failed to delete campaigns: ${error.message}`);
+        } finally {
+          setBulkDeleting(false);
         }
       }
     });
@@ -211,23 +278,81 @@ export default function CampaignsOverview({ campaigns: initialCampaigns }: Props
         onCancel={() => setConfirmDialog({ ...confirmDialog, isOpen: false })}
       />
 
+      {/* Bulk Actions Bar */}
+      {campaigns.length > 0 && (
+        <div className="bg-white rounded-lg border border-gray-200 p-4 mb-6 flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={selectedCampaigns.size === campaigns.length && campaigns.length > 0}
+                onChange={toggleSelectAll}
+                className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+              />
+              <span className="text-sm font-medium text-gray-700">
+                Select All ({campaigns.length})
+              </span>
+            </label>
+            {selectedCampaigns.size > 0 && (
+              <span className="text-sm text-gray-600">
+                {selectedCampaigns.size} selected
+              </span>
+            )}
+          </div>
+          
+          {selectedCampaigns.size > 0 && (
+            <button
+              onClick={bulkDeleteCampaigns}
+              disabled={bulkDeleting}
+              className="px-4 py-2 bg-red-600 text-white rounded-lg font-medium hover:bg-red-700 disabled:opacity-50 flex items-center gap-2"
+            >
+              {bulkDeleting ? (
+                <>
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                  Deleting...
+                </>
+              ) : (
+                <>
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                  </svg>
+                  Delete Selected ({selectedCampaigns.size})
+                </>
+              )}
+            </button>
+          )}
+        </div>
+      )}
+
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
         {campaigns.map((campaign) => (
           <div
             key={campaign.id}
-            className="bg-white rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-shadow overflow-hidden"
+            className={`bg-white rounded-xl border shadow-sm hover:shadow-md transition-all overflow-hidden ${
+              selectedCampaigns.has(campaign.id) 
+                ? 'border-blue-500 ring-2 ring-blue-200' 
+                : 'border-gray-200'
+            }`}
           >
             {/* Header */}
             <div className="p-6 border-b border-gray-100">
               <div className="flex items-start justify-between mb-3">
-                <div className="flex-1">
-                  <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                    {campaign.name || 'Unnamed Campaign'}
-                  </h3>
-                  <div className="flex items-center gap-2">
-                    <span className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-semibold border ${getStatusColor(campaign.status)}`}>
-                      {getStatusIcon(campaign.status)} {campaign.status}
-                    </span>
+                <div className="flex items-start gap-3 flex-1">
+                  <input
+                    type="checkbox"
+                    checked={selectedCampaigns.has(campaign.id)}
+                    onChange={() => toggleSelectCampaign(campaign.id)}
+                    className="mt-1 w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                  />
+                  <div className="flex-1">
+                    <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                      {campaign.name || 'Unnamed Campaign'}
+                    </h3>
+                    <div className="flex items-center gap-2">
+                      <span className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-semibold border ${getStatusColor(campaign.status)}`}>
+                        {getStatusIcon(campaign.status)} {campaign.status}
+                      </span>
+                    </div>
                   </div>
                 </div>
                 <button
