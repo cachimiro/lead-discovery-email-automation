@@ -83,6 +83,22 @@ export async function GET(request: Request) {
       const responseCount = responses?.length || 0;
       const responseRate = sent > 0 ? (responseCount / sent) * 100 : 0;
       
+      // Count positive and negative responses
+      const positiveResponses = responses?.filter(r => 
+        r.sentiment === 'positive' || r.is_interested === true
+      ).length || 0;
+      const negativeResponses = responses?.filter(r => 
+        r.sentiment === 'negative' || r.is_interested === false
+      ).length || 0;
+      
+      // Count emails by stage
+      const stage1Count = emails?.filter(e => e.follow_up_number === 1).length || 0;
+      const stage2Count = emails?.filter(e => e.follow_up_number === 2).length || 0;
+      const stage3Count = emails?.filter(e => e.follow_up_number === 3).length || 0;
+      
+      // Determine how many stages are enabled
+      const enabledStages = stage3Count > 0 ? 3 : stage2Count > 0 ? 2 : 1;
+      
       // Get today's sending stats
       const today = new Date().toISOString().split('T')[0];
       const { data: todaySchedule } = await supabase
@@ -119,7 +135,13 @@ export async function GET(request: Request) {
           cancelled,
           response_received: responseReceived,
           response_count: responseCount,
-          response_rate: responseRate.toFixed(1) + '%'
+          positive_responses: positiveResponses,
+          negative_responses: negativeResponses,
+          response_rate: responseRate.toFixed(1) + '%',
+          stage_1_count: stage1Count,
+          stage_2_count: stage2Count,
+          stage_3_count: stage3Count,
+          enabled_stages: enabledStages
         },
         today: {
           emails_sent: todaySchedule?.emails_sent_today || 0,
