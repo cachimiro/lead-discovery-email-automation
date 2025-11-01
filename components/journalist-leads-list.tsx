@@ -283,7 +283,7 @@ export default function JournalistLeadsList({ leads: initialLeads }: Props) {
           lead={editingFullLead}
           onClose={() => setEditingFullLead(null)}
           onUpdate={(updatedLead) => {
-            setLeads(leads.map(l => l.id === updatedLead.id ? updatedLead : l));
+            setLeads(leads.map(l => l.id === updatedLead.id ? { ...l, ...updatedLead } : l));
             setEditingFullLead(null);
           }}
         />
