@@ -44,13 +44,27 @@ export async function POST(
       return NextResponse.json({ error: 'Pool IDs are required' }, { status: 400 });
     }
 
-    // Store pool selection in session/temp storage
-    // For now, we'll pass it via query params to preview page
-    // In production, you might want to store this in a campaigns table
+    const supabase = await createServerSupabaseClient();
+    
+    // Save pool_ids to campaign
+    const { error: updateError } = await supabase
+      .from('cold_outreach_campaigns')
+      .update({ 
+        pool_ids: poolIds,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', params.id)
+      .eq('user_id', user.id);
+
+    if (updateError) {
+      console.error('Error updating campaign pools:', updateError);
+      return NextResponse.json({ error: 'Failed to save pool selection' }, { status: 500 });
+    }
 
     return NextResponse.json({ 
       success: true,
-      message: 'Pool selection saved'
+      message: 'Pool selection saved',
+      poolIds
     });
   } catch (error) {
     console.error('Error in POST /api/campaigns/[id]/pools:', error);
