@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import ConfirmDialog from "./confirm-dialog";
+import EditContactIndustryModal from "./edit-contact-industry-modal";
 
 interface Contact {
   id: string;
@@ -11,6 +12,7 @@ interface Contact {
   last_name?: string;
   company?: string;
   title?: string;
+  industry?: string;
   notes?: string;
   created_at: string;
 }
@@ -35,6 +37,7 @@ export default function ContactsList({ contacts: initialContacts }: Props) {
   const [showPoolModal, setShowPoolModal] = useState(false);
   const [pools, setPools] = useState<LeadPool[]>([]);
   const [loadingPools, setLoadingPools] = useState(false);
+  const [editingIndustry, setEditingIndustry] = useState<Contact | null>(null);
   const [confirmDialog, setConfirmDialog] = useState<{
     isOpen: boolean;
     title: string;
@@ -46,6 +49,11 @@ export default function ContactsList({ contacts: initialContacts }: Props) {
     message: "",
     onConfirm: () => {},
   });
+
+  // Count contacts without industry
+  const contactsWithoutIndustry = contacts.filter(
+    (contact) => !contact.industry || contact.industry.trim() === ''
+  );
 
   const filteredContacts = contacts.filter((contact) => {
     const search = searchTerm.toLowerCase();
@@ -222,6 +230,26 @@ export default function ContactsList({ contacts: initialContacts }: Props) {
 
   return (
     <div>
+      {contactsWithoutIndustry.length > 0 && (
+        <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 m-6 rounded-lg">
+          <div className="flex items-start">
+            <div className="flex-shrink-0">
+              <svg className="h-5 w-5 text-yellow-400" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+              </svg>
+            </div>
+            <div className="ml-3">
+              <h3 className="text-sm font-medium text-yellow-800">
+                ⚠️ {contactsWithoutIndustry.length} contact{contactsWithoutIndustry.length !== 1 ? 's' : ''} missing industry
+              </h3>
+              <p className="mt-1 text-sm text-yellow-700">
+                These contacts cannot be matched with journalists until an industry is assigned. Click "Add Industry" to fix.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+      
       <div className="border-b border-white/20 p-6">
         <div className="flex items-center gap-4">
           <div className="flex-1">
@@ -282,6 +310,9 @@ export default function ContactsList({ contacts: initialContacts }: Props) {
                 Title
               </th>
               <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider gradient-text">
+                Industry
+              </th>
+              <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider gradient-text">
                 Notes
               </th>
               <th className="px-6 py-4 text-right text-xs font-semibold uppercase tracking-wider gradient-text">
@@ -318,6 +349,20 @@ export default function ContactsList({ contacts: initialContacts }: Props) {
                 <td className="px-6 py-4 text-sm text-slate-900">
                   {contact.title || "—"}
                 </td>
+                <td className="px-6 py-4">
+                  {contact.industry && contact.industry.trim() !== '' ? (
+                    <span className="inline-flex rounded-full gradient-primary px-3 py-1 text-xs font-semibold text-white shadow-sm">
+                      {contact.industry}
+                    </span>
+                  ) : (
+                    <button
+                      onClick={() => setEditingIndustry(contact)}
+                      className="inline-flex items-center gap-1 rounded-full bg-yellow-100 px-3 py-1 text-xs font-semibold text-yellow-800 border border-yellow-300 hover:bg-yellow-200 transition-colors"
+                    >
+                      ⚠️ Add Industry
+                    </button>
+                  )}
+                </td>
                 <td className="px-6 py-4 text-sm text-slate-600">
                   {contact.notes ? (
                     <span className="line-clamp-2">{contact.notes}</span>
@@ -326,6 +371,14 @@ export default function ContactsList({ contacts: initialContacts }: Props) {
                   )}
                 </td>
                 <td className="px-6 py-4 text-right text-sm">
+                  {contact.industry && contact.industry.trim() !== '' && (
+                    <button
+                      onClick={() => setEditingIndustry(contact)}
+                      className="text-blue-600 hover:text-blue-700 font-medium transition-colors mr-3"
+                    >
+                      Edit Industry
+                    </button>
+                  )}
                   <button
                     onClick={() => handleDelete(contact.id)}
                     disabled={deletingId === contact.id}
@@ -408,6 +461,21 @@ export default function ContactsList({ contacts: initialContacts }: Props) {
             </div>
           </div>
         </div>
+      )}
+
+      {editingIndustry && (
+        <EditContactIndustryModal
+          contactId={editingIndustry.id}
+          contactName={`${editingIndustry.first_name || ''} ${editingIndustry.last_name || ''}`.trim() || editingIndustry.email}
+          currentIndustry={editingIndustry.industry || ''}
+          onClose={() => setEditingIndustry(null)}
+          onUpdate={(industry) => {
+            setContacts(contacts.map(c => 
+              c.id === editingIndustry.id ? { ...c, industry } : c
+            ));
+            setEditingIndustry(null);
+          }}
+        />
       )}
     </div>
   );
