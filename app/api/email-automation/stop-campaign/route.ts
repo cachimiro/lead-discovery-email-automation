@@ -41,7 +41,7 @@ export async function POST(request: Request) {
     
     // Verify campaign ownership
     const { data: campaign, error: campaignError } = await supabase
-      .from('cold_outreach_email_campaigns')
+      .from('cold_outreach_campaigns')
       .select('id, status')
       .eq('id', campaignId)
       .eq('user_id', userId)
@@ -88,7 +88,7 @@ export async function POST(request: Request) {
     
     // Update campaign status
     await supabase
-      .from('cold_outreach_email_campaigns')
+      .from('cold_outreach_campaigns')
       .update({
         status: 'paused',
         updated_at: new Date().toISOString()

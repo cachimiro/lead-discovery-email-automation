@@ -296,11 +296,15 @@ export async function POST(request: Request) {
     currentDate.setHours(sendingStartHour, 0, 0, 0);
     
     // Get journalist leads for industry matching (first email only)
+    // Only get journalists with deadlines in the future (not out of date)
+    const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD format
     const { data: journalistLeads } = await supabase
       .from('cold_outreach_journalist_leads')
       .select('*')
       .eq('user_id', userId)
-      .eq('is_active', true);
+      .eq('is_active', true)
+      .gte('deadline', today) // Only journalists with deadline >= today
+      .order('deadline', { ascending: true }); // Order by closest deadline first
 
     // Schedule first email for each contact
     for (const contact of contacts) {
@@ -312,6 +316,7 @@ export async function POST(request: Request) {
       // Check industry match for FIRST EMAIL ONLY
       // If contact has no industry or no matching journalist, mark as 'on_hold'
       let emailStatus = 'pending';
+      let matchedJournalist = null;
       const hasIndustry = contact.industry && contact.industry.trim() !== '';
       
       if (!hasIndustry) {
@@ -319,17 +324,20 @@ export async function POST(request: Request) {
         emailStatus = 'on_hold';
         console.log(`Contact ${contact.email} has no industry - first email on hold`);
       } else if (journalistLeads && journalistLeads.length > 0) {
-        // Has industry - check if it matches any journalist
-        const hasMatch = journalistLeads.some((j: any) => 
+        // Has industry - find matching journalists (not out of date)
+        // If multiple matches, pick the one with the closest deadline (already sorted)
+        matchedJournalist = journalistLeads.find((j: any) => 
           j.industry && 
           contact.industry &&
           j.industry.toLowerCase() === contact.industry.toLowerCase()
         );
         
-        if (!hasMatch) {
+        if (!matchedJournalist) {
           // Has industry but no match - put on hold until match is found
           emailStatus = 'on_hold';
-          console.log(`Contact ${contact.email} industry "${contact.industry}" has no matching journalist - first email on hold`);
+          console.log(`Contact ${contact.email} industry "${contact.industry}" has no matching journalist with valid deadline - first email on hold`);
+        } else {
+          console.log(`Contact ${contact.email} matched with journalist for ${matchedJournalist.publication} (deadline: ${matchedJournalist.deadline})`);
         }
       }
       
@@ -428,12 +436,13 @@ export async function POST(request: Request) {
         .insert(followUpEmails);
     }
     
-    // Update campaign status
+    // Update campaign status to active
     await supabase
-      .from('cold_outreach_email_campaigns')
+      .from('cold_outreach_campaigns')
       .update({
         status: 'active',
-        updated_at: new Date().toISOString()
+        updated_at: new Date().toISOString(),
+        started_at: new Date().toISOString()
       })
       .eq('id', campaignId);
     
