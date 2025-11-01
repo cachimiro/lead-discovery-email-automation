@@ -3,6 +3,7 @@ import { supabaseAdmin } from "@/lib/supabase";
 import Link from "next/link";
 import CampaignsOverview from "@/components/campaigns-overview";
 import DeleteAllCampaignsButton from "@/components/delete-all-campaigns-button";
+import CampaignsStats from "@/components/campaigns-stats";
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -42,24 +43,12 @@ export default async function CampaignsPage() {
         </div>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-4">
-        <div className="rounded-lg border border-slate-200 bg-white p-4">
-          <div className="text-2xl font-bold text-slate-900">{campaigns?.length || 0}</div>
-          <div className="text-sm text-slate-600">Total Campaigns</div>
-        </div>
-        <div className="rounded-lg border border-green-200 bg-green-50 p-4">
-          <div className="text-2xl font-bold text-green-600">{activeCount}</div>
-          <div className="text-sm text-green-700">Active</div>
-        </div>
-        <div className="rounded-lg border border-yellow-200 bg-yellow-50 p-4">
-          <div className="text-2xl font-bold text-yellow-600">{pausedCount}</div>
-          <div className="text-sm text-yellow-700">Paused</div>
-        </div>
-        <div className="rounded-lg border border-blue-200 bg-blue-50 p-4">
-          <div className="text-2xl font-bold text-blue-600">{draftCount}</div>
-          <div className="text-sm text-blue-700">Draft</div>
-        </div>
-      </div>
+      <CampaignsStats 
+        totalCount={campaigns?.length || 0}
+        activeCount={activeCount}
+        pausedCount={pausedCount}
+        draftCount={draftCount}
+      />
 
       <CampaignsOverview campaigns={campaigns || []} />
     </div>

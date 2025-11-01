@@ -69,6 +69,19 @@ export default function CampaignsOverview({ campaigns: initialCampaigns }: Props
     loadAllStats();
   }, []);
 
+  // Update stats display when campaigns change
+  useEffect(() => {
+    const total = campaigns.length;
+    const active = campaigns.filter(c => c.status === 'active').length;
+    const paused = campaigns.filter(c => c.status === 'paused').length;
+    const draft = campaigns.filter(c => c.status === 'draft').length;
+
+    const event = new CustomEvent('campaigns-stats-update', {
+      detail: { total, active, paused, draft }
+    });
+    window.dispatchEvent(event);
+  }, [campaigns]);
+
   const loadCampaignStats = async (campaignId: string) => {
     setLoadingStats(prev => ({ ...prev, [campaignId]: true }));
     try {
@@ -159,6 +172,7 @@ export default function CampaignsOverview({ campaigns: initialCampaigns }: Props
             newSet.delete(campaign.id);
             return newSet;
           });
+          router.refresh();
         } catch (error: any) {
           console.error('Delete error:', error);
           alert(`Failed to delete campaign: ${error.message}`);
