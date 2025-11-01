@@ -12,16 +12,31 @@ export async function POST(request: Request) {
 
     const supabase = supabaseAdmin();
     const body = await request.json();
-    const { first_name, last_name, email, publication, subject, industry, deadline, linkedin_category, notes } = body;
+    const { 
+      journalist_name, 
+      first_name, 
+      last_name, 
+      email, 
+      publication, 
+      subject, 
+      industry, 
+      deadline, 
+      linkedin_category, 
+      notes 
+    } = body;
 
-    // Combine first_name and last_name into journalist_name
-    const journalist_name = `${first_name || ''} ${last_name || ''}`.trim();
+    // Use journalist_name if provided, otherwise combine first_name and last_name
+    const finalJournalistName = journalist_name || `${first_name || ''} ${last_name || ''}`.trim();
+
+    if (!finalJournalistName) {
+      return NextResponse.json({ error: "Journalist name is required" }, { status: 400 });
+    }
 
     const { data, error } = await supabase
       .from("cold_outreach_journalist_leads")
       .insert({
         user_id: session.user.id,
-        journalist_name,
+        journalist_name: finalJournalistName,
         publication,
         subject,
         industry,

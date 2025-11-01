@@ -5,9 +5,10 @@ import { useRouter } from "next/navigation";
 
 interface Props {
   userId: string;
+  onLeadAdded?: (lead: any) => void;
 }
 
-export default function AddJournalistLeadForm({ userId }: Props) {
+export default function AddJournalistLeadForm({ userId, onLeadAdded }: Props) {
   const router = useRouter();
   const [formData, setFormData] = useState({
     journalist_name: "",
@@ -104,6 +105,8 @@ export default function AddJournalistLeadForm({ userId }: Props) {
         throw new Error(error.error || "Failed to add lead");
       }
 
+      const newLead = await response.json();
+
       setMessage({ type: "success", text: "Journalist lead added successfully!" });
       setFormData({
         journalist_name: "",
@@ -117,8 +120,13 @@ export default function AddJournalistLeadForm({ userId }: Props) {
       setIndustryDetected(false);
       setIndustryConfidence(null);
       
-      // Refresh the page to show new lead
-      router.refresh();
+      // Call the callback to update the list immediately
+      if (onLeadAdded) {
+        onLeadAdded(newLead);
+      } else {
+        // Fallback to refresh if no callback provided
+        router.refresh();
+      }
     } catch (error: any) {
       setMessage({ type: "error", text: error.message });
     } finally {
