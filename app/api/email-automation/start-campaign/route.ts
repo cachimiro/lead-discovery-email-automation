@@ -437,14 +437,22 @@ export async function POST(request: Request) {
     }
     
     // Update campaign status to active
-    await supabase
+    console.log('[START-CAMPAIGN] Updating campaign status to active:', campaignId);
+    const { data: updatedCampaign, error: statusUpdateError } = await supabase
       .from('cold_outreach_campaigns')
       .update({
         status: 'active',
         updated_at: new Date().toISOString(),
         started_at: new Date().toISOString()
       })
-      .eq('id', campaignId);
+      .eq('id', campaignId)
+      .select();
+
+    if (statusUpdateError) {
+      console.error('[START-CAMPAIGN] Error updating campaign status:', statusUpdateError);
+    } else {
+      console.log('[START-CAMPAIGN] Campaign status updated successfully:', updatedCampaign);
+    }
     
     // Log the start
     await supabase.from('cold_outreach_email_log').insert({
