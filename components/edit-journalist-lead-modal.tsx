@@ -13,6 +13,7 @@ interface JournalistLead {
   linkedin_category?: string;
   notes?: string;
   is_active: boolean;
+  created_at: string;
 }
 
 interface Props {
