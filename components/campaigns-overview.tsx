@@ -40,11 +40,14 @@ export default function CampaignsOverview({ campaigns: initialCampaigns }: Props
   const [campaigns, setCampaigns] = useState<Campaign[]>(initialCampaigns);
   const [loadingStats, setLoadingStats] = useState<Record<string, boolean>>({});
   const [togglingStatus, setTogglingStatus] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const [confirmDialog, setConfirmDialog] = useState<{
     isOpen: boolean;
     title: string;
     message: string;
     onConfirm: () => void;
+    confirmText?: string;
+    confirmClass?: string;
   }>({
     isOpen: false,
     title: "",
@@ -82,7 +85,7 @@ export default function CampaignsOverview({ campaigns: initialCampaigns }: Props
     }
   };
 
-  const toggleCampaignStatus = async (campaign: Campaign) => {
+  const toggleCampaignStatus = (campaign: Campaign) => {
     const newStatus = campaign.status === 'active' ? 'paused' : 'active';
     const action = newStatus === 'active' ? 'Resume' : 'Pause';
     
@@ -90,6 +93,8 @@ export default function CampaignsOverview({ campaigns: initialCampaigns }: Props
       isOpen: true,
       title: `${action} Campaign`,
       message: `Are you sure you want to ${action.toLowerCase()} "${campaign.name}"?`,
+      confirmText: action,
+      confirmClass: newStatus === 'active' ? 'bg-green-600 hover:bg-green-700' : 'bg-yellow-600 hover:bg-yellow-700',
       onConfirm: async () => {
         setConfirmDialog({ ...confirmDialog, isOpen: false });
         setTogglingStatus(campaign.id);
@@ -105,16 +110,53 @@ export default function CampaignsOverview({ campaigns: initialCampaigns }: Props
           });
 
           if (!response.ok) {
-            throw new Error('Failed to update campaign status');
+            const error = await response.json();
+            throw new Error(error.error || 'Failed to update campaign status');
           }
 
           setCampaigns(prev => prev.map(c => 
             c.id === campaign.id ? { ...c, status: newStatus } : c
           ));
+          
+          // Reload stats after status change
+          await loadCampaignStats(campaign.id);
         } catch (error: any) {
+          console.error('Toggle error:', error);
           alert(`Failed to ${action.toLowerCase()} campaign: ${error.message}`);
         } finally {
           setTogglingStatus(null);
+        }
+      }
+    });
+  };
+
+  const deleteCampaign = (campaign: Campaign) => {
+    setConfirmDialog({
+      isOpen: true,
+      title: 'Delete Campaign',
+      message: `Are you sure you want to delete "${campaign.name}"? This will delete all associated emails and cannot be undone.`,
+      confirmText: 'Delete',
+      confirmClass: 'bg-red-600 hover:bg-red-700',
+      onConfirm: async () => {
+        setConfirmDialog({ ...confirmDialog, isOpen: false });
+        setDeletingId(campaign.id);
+        
+        try {
+          const response = await fetch(`/api/campaigns?id=${campaign.id}`, {
+            method: 'DELETE'
+          });
+
+          if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.error || 'Failed to delete campaign');
+          }
+
+          setCampaigns(prev => prev.filter(c => c.id !== campaign.id));
+        } catch (error: any) {
+          console.error('Delete error:', error);
+          alert(`Failed to delete campaign: ${error.message}`);
+        } finally {
+          setDeletingId(null);
         }
       }
     });
@@ -163,6 +205,8 @@ export default function CampaignsOverview({ campaigns: initialCampaigns }: Props
         isOpen={confirmDialog.isOpen}
         title={confirmDialog.title}
         message={confirmDialog.message}
+        confirmText={confirmDialog.confirmText || 'Confirm'}
+        cancelText="Cancel"
         onConfirm={confirmDialog.onConfirm}
         onCancel={() => setConfirmDialog({ ...confirmDialog, isOpen: false })}
       />
@@ -186,10 +230,46 @@ export default function CampaignsOverview({ campaigns: initialCampaigns }: Props
                     </span>
                   </div>
                 </div>
+                <button
+                  onClick={() => deleteCampaign(campaign)}
+                  disabled={deletingId === campaign.id}
+                  className="text-gray-400 hover:text-red-600 transition-colors disabled:opacity-50"
+                  title="Delete campaign"
+                >
+                  {deletingId === campaign.id ? (
+                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-red-600"></div>
+                  ) : (
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                    </svg>
+                  )}
+                </button>
               </div>
               
-              <div className="text-xs text-gray-500">
-                Created {new Date(campaign.created_at).toLocaleDateString()}
+              {/* Campaign Summary */}
+              <div className="mt-3 space-y-2">
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-gray-600">Created:</span>
+                  <span className="font-medium text-gray-900">
+                    {new Date(campaign.created_at).toLocaleDateString()}
+                  </span>
+                </div>
+                {campaign.updated_at && campaign.updated_at !== campaign.created_at && (
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-gray-600">Last Updated:</span>
+                    <span className="font-medium text-gray-900">
+                      {new Date(campaign.updated_at).toLocaleDateString()}
+                    </span>
+                  </div>
+                )}
+                {campaign.stats && (
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-gray-600">Total Emails:</span>
+                    <span className="font-medium text-gray-900">
+                      {campaign.stats.total_emails}
+                    </span>
+                  </div>
+                )}
               </div>
             </div>
 
