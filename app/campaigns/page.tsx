@@ -4,6 +4,7 @@ import Link from "next/link";
 import CampaignsOverview from "@/components/campaigns-overview";
 import DeleteAllCampaignsButton from "@/components/delete-all-campaigns-button";
 import CampaignsStats from "@/components/campaigns-stats";
+import CampaignsDebug from "@/components/campaigns-debug";
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -50,25 +51,7 @@ export default async function CampaignsPage() {
         draftCount={draftCount}
       />
 
-      {/* Debug Info */}
-      <details className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-        <summary className="cursor-pointer font-semibold text-yellow-900">
-          🔍 Debug: Show Raw Campaign Data
-        </summary>
-        <div className="mt-4 space-y-2">
-          {campaigns?.map((c) => (
-            <div key={c.id} className="bg-white p-3 rounded border text-sm">
-              <div><strong>Name:</strong> {c.name}</div>
-              <div><strong>ID:</strong> {c.id}</div>
-              <div><strong>Status:</strong> <span className="font-bold">{c.status}</span></div>
-              <div><strong>Created:</strong> {new Date(c.created_at).toLocaleString()}</div>
-              <div><strong>Updated:</strong> {new Date(c.updated_at).toLocaleString()}</div>
-              {c.started_at && <div><strong>Started:</strong> {new Date(c.started_at).toLocaleString()}</div>}
-              <div><strong>User ID:</strong> {c.user_id}</div>
-            </div>
-          ))}
-        </div>
-      </details>
+      <CampaignsDebug campaigns={campaigns || []} />
 
       <CampaignsOverview campaigns={campaigns || []} />
     </div>
