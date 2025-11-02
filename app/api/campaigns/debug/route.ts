@@ -12,8 +12,23 @@ export async function GET(request: Request) {
 
     const { searchParams } = new URL(request.url);
     const campaignId = searchParams.get('campaignId');
+    const listAll = searchParams.get('listAll');
 
     const supabase = supabaseAdmin();
+
+    // If listAll is requested, return all campaigns for this user
+    if (listAll === 'true') {
+      const { data: allCampaigns } = await supabase
+        .from('cold_outreach_campaigns')
+        .select('id, name, status, created_at, updated_at, started_at')
+        .eq('user_id', session.user.id)
+        .order('created_at', { ascending: false });
+
+      return NextResponse.json({
+        campaigns: allCampaigns || [],
+        count: allCampaigns?.length || 0
+      });
+    }
 
     if (!campaignId) {
       return NextResponse.json({ error: 'Campaign ID required' }, { status: 400 });
