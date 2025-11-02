@@ -67,8 +67,17 @@ export default function CampaignsOverview({ campaigns: initialCampaigns }: Props
   }, [router]);
 
   // Update campaigns when props change (after server refresh)
+  // But preserve stats that were already loaded
   useEffect(() => {
-    setCampaigns(initialCampaigns);
+    setCampaigns(prev => {
+      // Merge new campaigns with existing stats
+      return initialCampaigns.map(newCampaign => {
+        const existing = prev.find(p => p.id === newCampaign.id);
+        return existing?.stats 
+          ? { ...newCampaign, stats: existing.stats }
+          : newCampaign;
+      });
+    });
   }, [initialCampaigns]);
 
   // Fetch fresh campaign status from database and return it
@@ -127,16 +136,22 @@ export default function CampaignsOverview({ campaigns: initialCampaigns }: Props
   const loadCampaignStats = async (campaignId: string) => {
     setLoadingStats(prev => ({ ...prev, [campaignId]: true }));
     try {
+      console.log('[STATS] Loading stats for campaign:', campaignId);
       const response = await fetch(`/api/email-automation/stats?campaignId=${campaignId}`);
       const data = await response.json();
       
+      console.log('[STATS] Response for', campaignId, ':', data);
+      
       if (data.stats) {
+        console.log('[STATS] Setting stats for campaign:', campaignId);
         setCampaigns(prev => prev.map(c => 
           c.id === campaignId ? { ...c, stats: data.stats } : c
         ));
+      } else {
+        console.warn('[STATS] No stats in response for campaign:', campaignId);
       }
     } catch (error) {
-      console.error('Error loading stats:', error);
+      console.error('[STATS] Error loading stats for', campaignId, ':', error);
     } finally {
       setLoadingStats(prev => ({ ...prev, [campaignId]: false }));
     }
