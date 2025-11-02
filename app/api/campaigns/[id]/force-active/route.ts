@@ -50,13 +50,12 @@ export async function POST(
       }, { status: 403 });
     }
 
-    // Try to update
+    // Try to update (without started_at for now, in case column doesn't exist)
     const { data: updated, error: updateError } = await supabase
       .from('cold_outreach_campaigns')
       .update({
         status: 'active',
-        updated_at: new Date().toISOString(),
-        started_at: new Date().toISOString()
+        updated_at: new Date().toISOString()
       })
       .eq('id', params.id)
       .eq('user_id', session.user.id)

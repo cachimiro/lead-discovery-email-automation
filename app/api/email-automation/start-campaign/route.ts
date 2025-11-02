@@ -444,7 +444,7 @@ export async function POST(request: Request) {
         .insert(followUpEmails);
     }
     
-    // Update campaign status to active
+    // Update campaign status to active (without started_at for now)
     console.log('[START-CAMPAIGN] Updating campaign status to active:', {
       campaignId,
       userId,
@@ -455,8 +455,7 @@ export async function POST(request: Request) {
       .from('cold_outreach_campaigns')
       .update({
         status: 'active',
-        updated_at: new Date().toISOString(),
-        started_at: new Date().toISOString()
+        updated_at: new Date().toISOString()
       })
       .eq('id', campaignId)
       .eq('user_id', userId)
