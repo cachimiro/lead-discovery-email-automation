@@ -71,8 +71,8 @@ export default function CampaignsOverview({ campaigns: initialCampaigns }: Props
     setCampaigns(initialCampaigns);
   }, [initialCampaigns]);
 
-  // Fetch fresh campaign status from database
-  const refreshCampaignStatus = async (campaignId: string) => {
+  // Fetch fresh campaign status from database and return it
+  const refreshCampaignStatus = async (campaignId: string): Promise<string | null> => {
     try {
       const response = await fetch(`/api/campaigns/${campaignId}/status`);
       const data = await response.json();
@@ -83,9 +83,12 @@ export default function CampaignsOverview({ campaigns: initialCampaigns }: Props
             ? { ...c, status: data.campaign.status, updated_at: data.campaign.updated_at }
             : c
         ));
+        return data.campaign.status;
       }
+      return null;
     } catch (error) {
       console.error('Error refreshing campaign status:', error);
+      return null;
     }
   };
 
@@ -93,16 +96,19 @@ export default function CampaignsOverview({ campaigns: initialCampaigns }: Props
   useEffect(() => {
     const loadAllData = async () => {
       for (const campaign of campaigns) {
-        // Refresh status from database
-        await refreshCampaignStatus(campaign.id);
+        // Refresh status from database and get the updated status
+        const updatedStatus = await refreshCampaignStatus(campaign.id);
         
-        // Load stats if active or paused
-        if (campaign.status === 'active' || campaign.status === 'paused') {
+        // Load stats if the updated status is active or paused
+        if (updatedStatus === 'active' || updatedStatus === 'paused') {
           await loadCampaignStats(campaign.id);
         }
       }
     };
-    loadAllData();
+    
+    if (campaigns.length > 0) {
+      loadAllData();
+    }
   }, [campaigns.length]); // Only run when campaign count changes
 
   // Update stats display when campaigns change
