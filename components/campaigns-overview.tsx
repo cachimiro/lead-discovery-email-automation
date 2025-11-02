@@ -71,17 +71,39 @@ export default function CampaignsOverview({ campaigns: initialCampaigns }: Props
     setCampaigns(initialCampaigns);
   }, [initialCampaigns]);
 
-  // Load stats for all campaigns
+  // Fetch fresh campaign status from database
+  const refreshCampaignStatus = async (campaignId: string) => {
+    try {
+      const response = await fetch(`/api/campaigns/${campaignId}/status`);
+      const data = await response.json();
+      
+      if (data.success && data.campaign) {
+        setCampaigns(prev => prev.map(c => 
+          c.id === campaignId 
+            ? { ...c, status: data.campaign.status, updated_at: data.campaign.updated_at }
+            : c
+        ));
+      }
+    } catch (error) {
+      console.error('Error refreshing campaign status:', error);
+    }
+  };
+
+  // Load stats and refresh status for all campaigns
   useEffect(() => {
-    const loadAllStats = async () => {
+    const loadAllData = async () => {
       for (const campaign of campaigns) {
+        // Refresh status from database
+        await refreshCampaignStatus(campaign.id);
+        
+        // Load stats if active or paused
         if (campaign.status === 'active' || campaign.status === 'paused') {
           await loadCampaignStats(campaign.id);
         }
       }
     };
-    loadAllStats();
-  }, [campaigns]);
+    loadAllData();
+  }, [campaigns.length]); // Only run when campaign count changes
 
   // Update stats display when campaigns change
   useEffect(() => {
@@ -405,6 +427,15 @@ export default function CampaignsOverview({ campaigns: initialCampaigns }: Props
                       <span className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-semibold border ${getStatusColor(campaign.status)}`}>
                         {getStatusIcon(campaign.status)} {campaign.status}
                       </span>
+                      <button
+                        onClick={() => refreshCampaignStatus(campaign.id)}
+                        className="text-gray-400 hover:text-blue-600 transition-colors"
+                        title="Refresh status from database"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                        </svg>
+                      </button>
                     </div>
                   </div>
                 </div>
