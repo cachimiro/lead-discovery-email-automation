@@ -284,16 +284,19 @@ export async function POST(request: Request) {
     
     // Schedule emails
     const emailsToQueue: any[] = [];
-    let currentDate = new Date();
-    
-    // Start tomorrow if after sending hours
     const now = new Date();
-    if (now.getHours() >= sendingEndHour) {
-      currentDate = getNextBusinessDay(currentDate, skipWeekends);
-    }
+    let currentDate = new Date();
     
     // Set to start hour
     currentDate.setHours(sendingStartHour, 0, 0, 0);
+    
+    // If the scheduled time is in the past, start tomorrow
+    if (currentDate <= now) {
+      currentDate = getNextBusinessDay(new Date(), skipWeekends);
+      currentDate.setHours(sendingStartHour, 0, 0, 0);
+    }
+    
+    console.log('[START-CAMPAIGN] Scheduling emails starting from:', currentDate.toISOString());
     
     // Get journalist leads for industry matching (first email only)
     // Only get journalists with deadlines in the future (not out of date)
@@ -385,13 +388,18 @@ export async function POST(request: Request) {
     }
     
     // Insert emails into queue
+    console.log('[START-CAMPAIGN] Inserting', emailsToQueue.length, 'emails into queue');
+    console.log('[START-CAMPAIGN] First email scheduled_for:', emailsToQueue[0]?.scheduled_for);
+    console.log('[START-CAMPAIGN] Current time:', new Date().toISOString());
+    
     const { data: queuedEmails, error: queueError } = await supabase
       .from('cold_outreach_email_queue')
       .insert(emailsToQueue)
       .select();
     
     if (queueError) {
-      console.error('Error queuing emails:', queueError);
+      console.error('[START-CAMPAIGN] Error queuing emails:', queueError);
+      console.error('[START-CAMPAIGN] Failed email data:', JSON.stringify(emailsToQueue[0], null, 2));
       return NextResponse.json(
         { error: 'Failed to queue emails: ' + queueError.message },
         { status: 500 }
