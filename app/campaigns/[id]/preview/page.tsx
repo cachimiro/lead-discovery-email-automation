@@ -189,8 +189,17 @@ export default function PreviewCampaignPage() {
       const data = await response.json();
       
       if (data.success) {
-        alert(`✅ Campaign started! ${data.stats.emails_queued} emails queued for sending.`);
-        router.push(`/campaigns/${campaignId}/dashboard`);
+        // Verify the status was actually updated
+        const statusCheck = await fetch(`/api/campaigns/${campaignId}/status`);
+        const statusData = await statusCheck.json();
+        
+        console.log('Campaign status after starting:', statusData);
+        
+        alert(`✅ Campaign started! ${data.stats.emails_queued} emails queued for sending.\n\nStatus: ${statusData.campaign?.status || 'unknown'}`);
+        
+        // Force a hard refresh by going to campaigns page first
+        router.push('/campaigns');
+        router.refresh();
       } else {
         alert('Failed to start campaign: ' + (data.error || 'Unknown error'));
       }
