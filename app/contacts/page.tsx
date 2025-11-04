@@ -3,6 +3,10 @@ import { supabaseAdmin } from "@/lib/supabase";
 import Link from "next/link";
 import UnifiedContactsList from "@/components/unified-contacts-list";
 
+// Force dynamic rendering - don't cache this page
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 export default async function ContactsPage() {
   const user = await requireAuth();
   const supabase = supabaseAdmin();

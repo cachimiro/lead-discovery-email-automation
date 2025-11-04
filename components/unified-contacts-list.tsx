@@ -50,8 +50,10 @@ const CATEGORIES = [
   { value: 'operations', label: 'Operations' },
 ];
 
-export default function UnifiedContactsList({ contacts, discoveredLeads, userId }: Props) {
+export default function UnifiedContactsList({ contacts: initialContacts, discoveredLeads: initialDiscoveredLeads, userId }: Props) {
   const router = useRouter();
+  const [contacts, setContacts] = useState<Contact[]>(initialContacts);
+  const [discoveredLeads, setDiscoveredLeads] = useState<DiscoveredLead[]>(initialDiscoveredLeads);
   const [activeTab, setActiveTab] = useState<'contacts' | 'discovered'>('contacts');
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
@@ -97,6 +99,23 @@ export default function UnifiedContactsList({ contacts, discoveredLeads, userId 
       const data = await response.json();
 
       if (data.success) {
+        // Optimistic update - add contact immediately to UI
+        const newContactData: Contact = {
+          id: data.contact.id,
+          email: newContact.email,
+          first_name: newContact.first_name,
+          last_name: newContact.last_name,
+          company: newContact.company,
+          title: newContact.title,
+          industry: newContact.industry,
+          categories: newContact.categories,
+          notes: newContact.notes,
+          email_status: data.contact.email_status,
+          is_valid: data.contact.is_valid,
+          created_at: data.contact.created_at
+        };
+        setContacts(prev => [newContactData, ...prev]);
+        
         setNewContact({
           email: '',
           first_name: '',
@@ -108,6 +127,8 @@ export default function UnifiedContactsList({ contacts, discoveredLeads, userId 
           notes: ''
         });
         setShowAddForm(false);
+        
+        // Still refresh to ensure consistency
         router.refresh();
       } else {
         alert(data.error || 'Failed to create contact');
@@ -136,7 +157,14 @@ export default function UnifiedContactsList({ contacts, discoveredLeads, userId 
       const data = await response.json();
 
       if (data.success) {
+        // Optimistic update - update contact immediately in UI
+        setContacts(prev => prev.map(c => 
+          c.id === editingContact.id ? { ...editingContact } : c
+        ));
+        
         setEditingContact(null);
+        
+        // Still refresh to ensure consistency
         router.refresh();
       } else {
         alert(data.error || 'Failed to update contact');
@@ -153,6 +181,13 @@ export default function UnifiedContactsList({ contacts, discoveredLeads, userId 
     if (!confirm('Are you sure you want to delete this?')) return;
 
     try {
+      // Optimistic update - remove from UI immediately
+      if (type === 'contact') {
+        setContacts(prev => prev.filter(c => c.id !== id));
+      } else {
+        setDiscoveredLeads(prev => prev.filter(l => l.id !== id));
+      }
+      
       const url = type === 'contact' 
         ? `/api/contacts?id=${id}`
         : `/api/discovered-leads/ai?id=${id}`;
@@ -161,13 +196,18 @@ export default function UnifiedContactsList({ contacts, discoveredLeads, userId 
       const data = await response.json();
 
       if (data.success) {
+        // Still refresh to ensure consistency
         router.refresh();
       } else {
         alert('Failed to delete');
+        // Revert optimistic update on error
+        router.refresh();
       }
     } catch (error) {
       console.error('Error deleting:', error);
       alert('Failed to delete');
+      // Revert optimistic update on error
+      router.refresh();
     }
   };
 

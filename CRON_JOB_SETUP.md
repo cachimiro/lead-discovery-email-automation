@@ -40,6 +40,10 @@ Authorization: Bearer BwhRI4XQSocArFsYRFt6qIzX48UOXLgTDrvca+ZVYGQ=
 
 ## 📋 Setup Instructions for cron-job.org
 
+You need to set up **TWO cron jobs**:
+
+### Cron Job #1: Send Emails (Every 5 minutes)
+
 1. **Go to** [https://cron-job.org](https://cron-job.org)
 
 2. **Create Account** (if you haven't already)
@@ -57,13 +61,38 @@ Authorization: Bearer BwhRI4XQSocArFsYRFt6qIzX48UOXLgTDrvca+ZVYGQ=
 
 4. **Save and Enable**
 
+### Cron Job #2: Check for Replies (Every 15 minutes)
+
+1. **Create Another Cron Job:**
+   - **Title:** Lead Discovery Response Checker
+   - **URL:** `https://YOUR-DOMAIN.com/api/email-automation/check-responses`
+   - **Schedule:** Every 15 minutes
+     - Pattern: `*/15 * * * *`
+   - **Request Method:** POST
+   - **Request Headers:**
+     ```
+     Authorization: Bearer BwhRI4XQSocArFsYRFt6qIzX48UOXLgTDrvca+ZVYGQ=
+     ```
+
+2. **Save and Enable**
+
+**Why two cron jobs?**
+- **Send-batch:** Sends pending emails at their scheduled time
+- **Check-responses:** Actively checks Gmail/Microsoft for replies and cancels follow-ups
+
 ---
 
 ## 🧪 Testing the Setup
 
-### Manual Test (Before Setting Up Cron):
+### Manual Test #1: Send Emails
 ```bash
 curl -X POST https://YOUR-DOMAIN.com/api/email-automation/send-batch \
+  -H "Authorization: Bearer BwhRI4XQSocArFsYRFt6qIzX48UOXLgTDrvca+ZVYGQ="
+```
+
+### Manual Test #2: Check Responses
+```bash
+curl -X POST https://YOUR-DOMAIN.com/api/email-automation/check-responses \
   -H "Authorization: Bearer BwhRI4XQSocArFsYRFt6qIzX48UOXLgTDrvca+ZVYGQ="
 ```
 
