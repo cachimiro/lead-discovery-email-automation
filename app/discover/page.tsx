@@ -118,7 +118,7 @@ export default function DiscoverPage() {
 
     setSaving(true);
     try {
-      const res = await fetch("/api/checkout", {
+      const response = await fetch("/api/checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -134,9 +134,18 @@ export default function DiscoverPage() {
             decision_categories: searchState.selectedRoles,
           })),
         }),
-      }).then((r) => r.json());
+      });
 
-      if (res.checkoutUrl || res.batchId) {
+      const res = await response.json();
+      
+      console.log('Checkout response:', res);
+      console.log('Response status:', response.status);
+
+      if (!response.ok) {
+        throw new Error(res.error || `Server error: ${response.status}`);
+      }
+
+      if (res.success || res.checkoutUrl || res.batchId) {
         setMsg(`✅ Successfully saved ${leadsToSave.length} lead${leadsToSave.length > 1 ? 's' : ''}!`);
         showSuccess("Leads Saved!", `${leadsToSave.length} lead${leadsToSave.length > 1 ? 's' : ''} saved to your account.`);
         
@@ -147,12 +156,12 @@ export default function DiscoverPage() {
         setSelectedLeads(remainingLeads);
       } else {
         setMsg("❌ Could not save leads. Please try again.");
-        showError("Save Failed", "Could not save leads. Please try again.");
+        showError("Save Failed", res.error || "Could not save leads. Please try again.");
       }
-    } catch (err) {
-      console.error(err);
-      setMsg("Error saving leads. Please try again.");
-      showError("Error", "Error saving leads. Please try again.");
+    } catch (err: any) {
+      console.error('Save leads error:', err);
+      setMsg(`Error: ${err.message}`);
+      showError("Save Failed", err.message || "Error saving leads. Please try again.");
     } finally {
       setSaving(false);
     }
