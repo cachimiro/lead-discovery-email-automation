@@ -36,9 +36,12 @@ export async function POST(request: Request) {
       contact_first_name: lead.fullName?.split(' ')[0] || '',
       contact_last_name: lead.fullName?.split(' ').slice(1).join(' ') || '',
       contact_title: lead.title || '',
-      company_name: lead.companyName || '',
-      company_domain: lead.company_domain || '',
+      company_name: lead.companyName || 'Unknown',
+      company_url: lead.company_domain ? `https://${lead.company_domain}` : null,
+      industry: lead.industry || 'Unknown', // Required field
       email_status: lead.verified_status || lead.amf_email_status || 'unknown',
+      fit_score: 50, // Default medium fit score
+      data_completeness: 70, // Default completeness
       source: lead.source || 'decision_maker',
       decision_categories: lead.decision_categories || [],
       created_at: new Date().toISOString()
@@ -52,11 +55,21 @@ export async function POST(request: Request) {
 
     if (error) {
       console.error('Error saving discovered leads:', error);
+      console.error('Error details:', JSON.stringify(error, null, 2));
+      console.error('Sample lead data:', JSON.stringify(leadsToInsert[0], null, 2));
       
       // Check for duplicate email error
       if (error.code === '23505') {
         return NextResponse.json(
           { error: 'Some leads already exist in your database' },
+          { status: 400 }
+        );
+      }
+      
+      // Check for NOT NULL constraint violation
+      if (error.code === '23502') {
+        return NextResponse.json(
+          { error: `Missing required field: ${error.message}` },
           { status: 400 }
         );
       }
