@@ -66,8 +66,8 @@ export async function POST(request: Request) {
       email_status: lead.verified_status || lead.amf_email_status || 'unknown',
       fit_score: 50, // Default medium fit score
       data_completeness: 70, // Default completeness
-      source: lead.source || 'decision_maker',
-      decision_categories: lead.decision_categories || [],
+      data_source: 'anymailfinder', // Where the lead came from
+      discovered_at: new Date().toISOString(),
       created_at: new Date().toISOString()
     }));
 
