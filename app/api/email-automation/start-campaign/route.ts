@@ -70,15 +70,34 @@ function calculateFollowUpDate(
  * Replace template variables with user lead and journalist data
  */
 function replaceVariables(text: string, userLead: any, journalist: any): string {
+  // Extract journalist name parts if journalist_name is provided
+  let journalistFirstName = journalist?.first_name || '';
+  let journalistLastName = journalist?.last_name || '';
+  
+  if (!journalistFirstName && !journalistLastName && journalist?.journalist_name) {
+    const nameParts = journalist.journalist_name.split(' ');
+    journalistFirstName = nameParts[0] || '';
+    journalistLastName = nameParts.slice(1).join(' ') || '';
+  }
+  
   return text
     // Journalist variables
-    .replace(/\{\{journalist_first_name\}\}/g, journalist?.first_name || '')
-    .replace(/\{\{journalist_last_name\}\}/g, journalist?.last_name || '')
+    .replace(/\{\{journalist_first_name\}\}/g, journalistFirstName)
+    .replace(/\{\{journalist_last_name\}\}/g, journalistLastName)
+    .replace(/\{\{journalist_name\}\}/g, journalist?.journalist_name || `${journalistFirstName} ${journalistLastName}`.trim())
     .replace(/\{\{publication\}\}/g, journalist?.publication || journalist?.company || '')
     .replace(/\{\{topic\}\}/g, journalist?.topic || journalist?.subject || '')
     .replace(/\{\{journalist_industry\}\}/g, journalist?.industry || '')
+    .replace(/\{\{deadline\}\}/g, journalist?.deadline ? new Date(journalist.deadline).toLocaleDateString() : '')
     .replace(/\{\{notes\}\}/g, journalist?.notes || journalist?.additional_notes || '')
-    // User/Lead variables
+    // Contact/User variables
+    .replace(/\{\{first_name\}\}/g, userLead?.first_name || '')
+    .replace(/\{\{last_name\}\}/g, userLead?.last_name || '')
+    .replace(/\{\{email\}\}/g, userLead?.email || '')
+    .replace(/\{\{company\}\}/g, userLead?.company || '')
+    .replace(/\{\{title\}\}/g, userLead?.title || '')
+    .replace(/\{\{industry\}\}/g, userLead?.industry || '')
+    // Legacy variable names (for backwards compatibility)
     .replace(/\{\{user_first_name\}\}/g, userLead?.first_name || '')
     .replace(/\{\{user_last_name\}\}/g, userLead?.last_name || '')
     .replace(/\{\{user_email\}\}/g, userLead?.email || '')
@@ -363,8 +382,8 @@ export async function POST(request: Request) {
           user_id: userId,
           campaign_id: campaignId,
           recipient_email: contact.email,
-          subject: replaceVariables(template.subject, contact, contact),
-          body: replaceVariables(template.body, contact, contact),
+          subject: replaceVariables(template.subject, contact, matchedJournalist),
+          body: replaceVariables(template.body, contact, matchedJournalist),
           scheduled_for: retrySlot.scheduledTime!.toISOString(),
           status: emailStatus, // 'pending' or 'on_hold' based on industry match
           is_follow_up: false,
@@ -376,8 +395,8 @@ export async function POST(request: Request) {
           user_id: userId,
           campaign_id: campaignId,
           recipient_email: contact.email,
-          subject: replaceVariables(template.subject, contact, contact),
-          body: replaceVariables(template.body, contact, contact),
+          subject: replaceVariables(template.subject, contact, matchedJournalist),
+          body: replaceVariables(template.body, contact, matchedJournalist),
           scheduled_for: slot.scheduledTime!.toISOString(),
           status: emailStatus, // 'pending' or 'on_hold' based on industry match
           is_follow_up: false,
@@ -416,6 +435,17 @@ export async function POST(request: Request) {
     
     for (const template of followUpTemplates) {
       for (const firstEmail of queuedEmails || []) {
+        // Get the contact for this email to replace variables
+        const contact = contacts.find((c: any) => c.id === firstEmail.contact_id);
+        if (!contact) continue;
+        
+        // Find matched journalist for this contact (same logic as first email)
+        const matchedJournalist = journalistLeads?.find((j: any) => 
+          j.industry && 
+          contact.industry &&
+          j.industry.toLowerCase() === contact.industry.toLowerCase()
+        );
+        
         const followUpDate = calculateFollowUpDate(
           new Date(firstEmail.scheduled_for),
           followUpDelayDays * (template.template_number - 1), // Multiply delay by template number
@@ -426,8 +456,8 @@ export async function POST(request: Request) {
           user_id: userId,
           campaign_id: campaignId,
           recipient_email: firstEmail.recipient_email,
-          subject: template.subject,
-          body: template.body,
+          subject: replaceVariables(template.subject, contact, matchedJournalist),
+          body: replaceVariables(template.body, contact, matchedJournalist),
           scheduled_for: followUpDate.toISOString(),
           status: 'pending', // Always pending - no industry check for follow-ups
           is_follow_up: true,
