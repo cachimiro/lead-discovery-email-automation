@@ -8,26 +8,50 @@ import { getSession } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabase';
 import { NextResponse } from 'next/server';
 
+/**
+ * GET - Health check
+ */
+export async function GET() {
+  return NextResponse.json({
+    status: 'active',
+    endpoint: '/api/checkout',
+    method: 'POST',
+    timestamp: new Date().toISOString()
+  });
+}
+
+/**
+ * POST - Save discovered leads
+ */
 export async function POST(request: Request) {
+  console.log('[CHECKOUT] POST request received');
+  
   try {
     const session = await getSession();
+    console.log('[CHECKOUT] Session:', session ? 'Found' : 'Not found');
 
     if (!session || !session.user) {
+      console.log('[CHECKOUT] Unauthorized - no session');
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     const body = await request.json();
+    console.log('[CHECKOUT] Request body:', JSON.stringify(body, null, 2));
     const { leads } = body;
 
     if (!leads || !Array.isArray(leads) || leads.length === 0) {
+      console.log('[CHECKOUT] No leads provided');
       return NextResponse.json(
         { error: 'No leads provided' },
         { status: 400 }
       );
     }
 
+    console.log('[CHECKOUT] Processing', leads.length, 'leads');
+    
     const supabase = supabaseAdmin();
     const userId = session.user.id;
+    console.log('[CHECKOUT] User ID:', userId);
 
     // Prepare leads for insertion
     const leadsToInsert = leads.map((lead: any) => ({
@@ -47,6 +71,9 @@ export async function POST(request: Request) {
       created_at: new Date().toISOString()
     }));
 
+    console.log('[CHECKOUT] Inserting leads into database...');
+    console.log('[CHECKOUT] Sample lead:', JSON.stringify(leadsToInsert[0], null, 2));
+    
     // Insert into AI discovered leads table
     const { data, error } = await supabase
       .from('cold_outreach_ai_discovered_leads')
@@ -54,9 +81,10 @@ export async function POST(request: Request) {
       .select();
 
     if (error) {
-      console.error('Error saving discovered leads:', error);
-      console.error('Error details:', JSON.stringify(error, null, 2));
-      console.error('Sample lead data:', JSON.stringify(leadsToInsert[0], null, 2));
+      console.error('[CHECKOUT] Database error:', error);
+      console.error('[CHECKOUT] Error code:', error.code);
+      console.error('[CHECKOUT] Error message:', error.message);
+      console.error('[CHECKOUT] Error details:', JSON.stringify(error, null, 2));
       
       // Check for duplicate email error
       if (error.code === '23505') {
@@ -77,6 +105,8 @@ export async function POST(request: Request) {
       throw error;
     }
 
+    console.log('[CHECKOUT] Successfully saved', data?.length, 'leads');
+    
     return NextResponse.json({
       success: true,
       batchId: data?.[0]?.id || 'batch_' + Date.now(),
@@ -85,9 +115,10 @@ export async function POST(request: Request) {
     });
 
   } catch (error: any) {
-    console.error('Error in checkout API:', error);
+    console.error('[CHECKOUT] Unhandled error:', error);
+    console.error('[CHECKOUT] Error stack:', error.stack);
     return NextResponse.json(
-      { error: error.message || 'Internal server error' },
+      { error: error.message || 'Internal server error', details: error.toString() },
       { status: 500 }
     );
   }
